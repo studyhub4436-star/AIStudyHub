@@ -98,7 +98,7 @@ def send_email_otp(to_email, otp):
         msg.attach(MIMEText(body, 'plain'))
 
         # ✅ IMPORTANT CHANGE HERE
-        server = smtplib.SMTP(smtp_server, smtp_port)
+        server = smtplib.SMTP("smtp.gmail.com",587)
         server.starttls()   # 🔥 REQUIRED for port 587
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, to_email, msg.as_string())
