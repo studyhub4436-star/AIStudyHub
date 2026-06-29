@@ -79,35 +79,27 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # SMTP Email Helper
 # ==========================================
 def send_email_otp(to_email, otp):
-    smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-    smtp_port = int(os.getenv('SMTP_PORT', '465'))
+    smtp_server = "smtp.gmail.com"
+    smtp_port = 587
     sender_email = os.getenv('SMTP_EMAIL')
     sender_password = os.getenv('SMTP_PASSWORD')
 
-    if not sender_email or not sender_password or sender_email == "your-email@gmail.com":
-        print("[SMTP ERROR] SMTP_EMAIL or SMTP_PASSWORD not configured. Cannot send email.")
+    if not sender_email or not sender_password:
+        print("[SMTP ERROR] Missing credentials")
         return False
 
     try:
         msg = MIMEMultipart()
-        msg['From'] = f"AI Study Hub <{sender_email}>"
-        msg['Reply-To'] = sender_email
+        msg['From'] = sender_email
         msg['To'] = to_email
-        msg['Subject'] = "AI Study Hub - Email Verification Code"
+        msg['Subject'] = "AI Study Hub OTP"
 
-        body = f"""
-        <html>
-        <body>
-            <h2>AI Study Hub OTP</h2>
-            <p>Your OTP is:</p>
-            <h1>{otp}</h1>
-        </body>
-        </html>
-        """
-        msg.attach(MIMEText(body, 'html'))
+        body = f"Your OTP is: {otp}"
+        msg.attach(MIMEText(body, 'plain'))
 
-        # ✅ SMTP SSL CONNECTION
-        server = smtplib.SMTP_SSL(smtp_server, 465)
+        # ✅ IMPORTANT CHANGE HERE
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()   # 🔥 REQUIRED for port 587
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, to_email, msg.as_string())
         server.quit()
@@ -115,7 +107,7 @@ def send_email_otp(to_email, otp):
         return True
 
     except Exception as e:
-        print(f"[SMTP ERROR] Failed to send email via SMTP: {e}")
+        print(f"[SMTP ERROR] {e}")
         return False
 
 # ==========================================
