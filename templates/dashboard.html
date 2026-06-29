@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Hub Dashboard</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+
+    <!-- Mobile Navbar -->
+
+    <div class="mobile-navbar">
+
+        <div class="logo">
+            🤖 AI Study Hub
+        </div>
+
+        <div class="menu-btn" onclick="toggleSidebar()">
+            ☰
+        </div>
+
+    </div>
+
+    <!-- Sidebar -->
+
+    <div class="sidebar">
+
+        <h2>🤖 AI Study Hub</h2>
+
+        <ul>
+
+            <li onclick="showSection('home',this)">
+                🏠 Home
+            </li>
+
+            <li onclick="showSection('search',this)">
+                🔍 Search
+            </li>
+
+            <li onclick="showSection('upload',this)">
+                📤 Upload
+            </li>
+
+            <li onclick="showSection('trending',this)">
+                🔥 Trending
+            </li>
+
+            <li onclick="showSection('recommendations',this)">
+                🤖 Recommendations
+            </li>
+
+            <li onclick="showSection('downloads',this)">
+                ⬇ Downloads
+            </li>
+
+            <li onclick="showSection('profile',this)">
+                👤 Profile
+            </li>
+
+            <li onclick="logout()">
+                🚪 Logout
+            </li>
+
+        </ul>
+
+    </div>
+
+    <!-- Main Content -->
+     
+
+    <div class="main">
+
+        <!-- HOME -->
+
+        <section id="home" class="content active">
+
+    <h1>Welcome Back {{ user.name }} 👋</h1>
+
+    <div class="card"
+        onclick="window.location='/my-uploads'"
+        style="cursor:pointer;">
+
+        <h2>{{ my_uploads_count }}</h2>
+        <p>My Uploads</p>
+
+    </div>
+
+</section>
+
+        <!-- SEARCH -->
+
+        <section id="search" class="content">
+
+            <h1>🔍 Search Study Materials</h1>
+
+            <!-- Filters -->
+
+            <div class="search-filters">
+
+                <select id="searchBranch" onchange="runSearch()">
+
+                    <option value="">Select Branch</option>
+
+                    <option>CSE</option>
+
+                    <option>CSE-AI</option>
+
+                    <option>CSE-DS</option>
+
+                    <option>ECE</option>
+
+                    <option>EEE</option>
+
+                    <option>IT</option>
+
+                    <option>MECH</option>
+
+                    <option>CIVIL</option>
+
+                </select>
+
+                <select id="searchYear" onchange="runSearch()">
+
+                    <option value="">Select Year</option>
+
+                    <option>1st Year</option>
+
+                    <option>2nd Year</option>
+
+                    <option>3rd Year</option>
+
+                    <option>4th Year</option>
+
+                </select>
+
+                <div class="subject-box">
+
+                    <input
+                        type="text"
+                        id="subjectSearch"
+                        list="subjects"
+                        placeholder="Search PDF Name..."
+                        onkeyup="runSearch()">
+
+                    <datalist id="subjects">
+
+                        <option value="DBMS">
+
+                        <option value="Operating Systems">
+
+                        <option value="Computer Networks">
+
+                        <option value="Machine Learning">
+
+                        <option value="Python Programming">
+
+                        <option value="Artificial Intelligence">
+
+                        <option value="Data Structures">
+
+                        <option value="Data Mining">
+
+                        <option value="Software Engineering">
+
+                        <option value="Cloud Computing">
+
+                        <option value="Deep Learning">
+
+                        <option value="Computer Organization">
+
+                    </datalist>
+
+                </div>
+
+            </div>
+
+            <!-- Container for AJAX Search Results -->
+            <div id="searchResultsContainer">
+               
+                <p style="color: #cbd5e1; padding: 20px 0;">Start typing or select filters to search documents...</p>
+            </div>
+
+<div id="pdfPreviewContainer" style="margin-top:20px;">
+    <iframe
+        id="pdfViewer"
+        width="100%"
+        height="600"
+        style="display:none;border:1px solid #ccc;border-radius:10px;">
+    </iframe>
+</div>
+
+        </section>
+
+        <!-- UPLOAD -->
+
+        <section id="upload" class="content">
+
+            <h1>Upload Study Material</h1>
+
+            <form class="upload-form" id="uploadForm">
+
+                <input
+                    type="text"
+                    id="uploadTitle"
+                    placeholder="Enter Title"
+                    required>
+
+                <textarea
+                    id="uploadDescription"
+                    placeholder="Enter Description"
+                    required></textarea>
+
+                <select id="uploadBranch" required>
+
+                    <option value="">Select Branch</option>
+
+                    <option>CSE</option>
+
+                    <option>CSE-AI</option>
+
+                    <option>CSE-DS</option>
+
+                    <option>ECE</option>
+
+                    <option>EEE</option>
+
+                    <option>IT</option>
+
+                    <option>MECH</option>
+
+                    <option>CIVIL</option>
+
+                </select>
+
+                <select id="uploadYear" required>
+
+                    <option value="">Select Year</option>
+
+                    <option>1st Year</option>
+
+                    <option>2nd Year</option>
+
+                    <option>3rd Year</option>
+
+                    <option>4th Year</option>
+
+                </select>
+
+                <input
+                    type="text"
+                    id="uploadSubject"
+                    placeholder="Subject"
+                    required>
+
+                <input
+                    type="file"
+                    id="uploadFile"
+                    accept=".pdf"
+                    required>
+
+                <button type="submit">
+                    Upload PDF
+                </button>
+
+            </form>
+
+        </section>
+
+        <!-- TRENDING -->
+
+        <section id="trending" class="content">
+
+            <h1>🔥 Trending PDFs</h1>
+
+            <div class="cards">
+                {% for file in trending_files %}
+                <div class="card">
+
+                    <h3>{{ file.title }}</h3>
+
+                    <p>{{ file.downloads }} Downloads</p>
+
+                  <button onclick="downloadFile('{{ file.id }}')">Download</button>
+                <button onclick="previewFile('{{ file.id }}')">Preview</button>
+                </div>
+                {% else %}
+                <div class="card" style="width: 100%; grid-column: 1/-1;">
+                    <p style="color: #cbd5e1;">No files uploaded yet.</p>
+                </div>
+                {% endfor %}
+            </div>
+
+        </section>
+
+        <!-- RECOMMENDATIONS -->
+
+        <section id="recommendations" class="content">
+
+            <h1>🤖 Recommended For You</h1>
+
+            <div class="cards">
+                {% for file in recommended_files %}
+                <div class="card">
+
+                    <h3>{{ file.title }}</h3>
+
+                    <p>Similarity : {{ file.similarity }}%</p>
+
+                    <button onclick="downloadFile('{{ file.id }}')">Download</button>
+                    <button onclick="previewFile('{{ file.id }}')">Preview</button>
+   
+</button>
+
+                </div>
+                {% else %}
+                <div class="card" style="width: 100%; grid-column: 1/-1;">
+                    <p style="color: #cbd5e1;">No recommendations available yet. Try downloading files first!</p>
+                </div>
+                {% endfor %}
+            </div>
+
+        </section>
+
+        <!-- DOWNLOADS -->
+
+        <section id="downloads" class="content">
+
+            <h1>⬇ Download History</h1>
+
+            <table>
+
+                <tr>
+                    <th>PDF Name</th>
+                    <th>Subject</th>
+                    <th>Date</th>
+                </tr>
+                {% for dl in downloads_history %}
+                <tr>
+                    <td>{{ dl.title }}</td>
+                    <td>{{ dl.subject }}</td>
+                    <td>{{ dl.date }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="3" style="text-align: center; color: #cbd5e1; padding: 20px;">No download history found.</td>
+                </tr>
+                {% endfor %}
+
+            </table>
+
+        </section>
+
+        <!-- PROFILE -->
+
+        <section id="profile" class="content">
+
+            <h1>👤 My Profile</h1>
+
+            <div class="profile-card">
+
+                <img src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png"
+                    alt="Profile">
+
+                <h2 id="profileName">{{ user.name }}</h2>
+
+                <p id="profileEmail">
+                    📧 {{ user.email }}
+                </p>
+
+                <p id="profileBranch">
+                    🏫 {{ user.branch }}
+                </p>
+
+                <p id="profileYear">
+                    📚 {{ user.year }}
+                </p>
+
+                <p id="profileUploadsCount">📤 Uploads : {{ my_uploads_count }}</p>
+
+                <p id="profileDownloadsCount">⬇ Downloads : {{ downloads_history|length }}</p>
+
+                <button onclick="editProfile()">
+                    Edit Profile
+                </button>
+
+                <button onclick="logout()">
+                    Logout
+                </button>
+
+            </div>
+
+        </section>
+
+        <!-- EDIT PROFILE MODAL -->
+
+        <div id="editModal"
+            style="display:none;">
+
+            <div class="profile-card">
+
+                <h2>Edit Profile</h2>
+
+                <input
+                    type="text"
+                    id="editName"
+                    placeholder="Enter Name">
+
+                <input
+                    type="email"
+                    id="editEmail"
+                    placeholder="Enter Email">
+
+                <select id="editBranch">
+
+                    <option>CSE</option>
+                    <option>CSE-AI</option>
+                    <option>CSE-DS</option>
+                    <option>ECE</option>
+                    <option>EEE</option>
+                    <option>IT</option>
+                    <option>MECH</option>
+                    <option>CIVIL</option>
+
+                </select>
+
+                <select id="editYear">
+
+                    <option>1st Year</option>
+                    <option>2nd Year</option>
+                    <option>3rd Year</option>
+                    <option>4th Year</option>
+
+                </select>
+
+                <button onclick="saveProfile()">
+                    Save
+                </button>
+
+                <button onclick="closeModal()">
+                    Cancel
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+
+</body>
+
+</html>

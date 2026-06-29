@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>All PDFs</title>
+</head>
+<body>
+
+<h1>All PDFs</h1>
+
+{% for doc in docs %}
+
+<div style="border:1px solid #ccc;padding:15px;margin:10px;">
+
+    <h3>{{ doc.title }}</h3>
+
+    <p>{{ doc.subject }}</p>
+
+    <button onclick="window.location='/api/download/{{ doc._id }}'">
+        Download
+    </button>
+
+    <button onclick="window.open('/preview/{{ doc._id }}')">
+        Preview
+    </button>
+
+</div>
+
+{% endfor %}
+
+</body>
+</html>

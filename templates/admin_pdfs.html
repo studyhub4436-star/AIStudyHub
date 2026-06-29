@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin PDFs</title>
+    <style>
+        body {
+            font-family: Arial;
+            background: #f4f6f9;
+            padding: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .title {
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .meta {
+            color: gray;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 5px;
+            text-decoration: none;
+            color: white;
+        }
+
+        .preview {
+            background: #3498db;
+        }
+
+        .delete {
+            background: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+
+<h1>📚 Admin PDF Panel</h1>
+
+{% for pdf in pdfs %}
+
+<div class="card">
+
+    <div class="title">
+        📄 {{ pdf.title }}
+    </div>
+
+    <div class="meta">
+        📚 Subject: {{ pdf.subject }} <br>
+        👤 Uploaded By: {{ pdf.uploaded_by }}
+    </div>
+
+    <br>
+
+    <a class="btn preview"
+       href="/admin/preview/{{ pdf._id }}">
+       👀 Preview
+    </a>
+
+    <a class="btn delete"
+       href="/admin/delete-pdf/{{ pdf._id }}"
+       onclick="return confirm('Are you sure you want to delete this PDF?')">
+       🗑️ Delete
+    </a>
+    {% if pdf.hidden %}
+<a class="btn"
+   style="background:green;"
+   href="/admin/unhide-pdf/{{ pdf._id }}">
+   👁️ Unhide
+</a>
+{% else %}
+<a class="btn"
+   style="background:orange;"
+   href="/admin/hide-pdf/{{ pdf._id }}">
+   🚫 Hide
+</a>
+{% endif %}
+
+</div>
+
+{% endfor %}
+<h2>All PDFs</h2>
+
+<table border="1" cellpadding="10">
+    <tr>
+        <th>File Name</th>
+        <th>Actions</th>
+    </tr>
+
+    {% for pdf in pdfs %}
+    <tr>
+        <td>{{ pdf.filename }}</td>
+
+        <td>
+            <!-- Preview -->
+            <a href="/preview/{{ pdf._id }}" target="_blank">👁 Preview</a>
+
+            <!-- Download -->
+            <a href="/download/{{ pdf._id }}">⬇ Download</a>
+        </td>
+    </tr>
+    {% endfor %}
+</table>
+
+</body>
+</html>

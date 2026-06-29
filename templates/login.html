@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Study Hub | Login</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+<style>
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+body{
+min-height:100vh;
+display:flex;
+justify-content:center;
+align-items:flex-start;
+padding:50px 0;
+background:linear-gradient(
+135deg,
+#0f172a,
+#1e293b,
+#0f172a);
+overflow-y:auto;
+overflow-x:hidden;
+}
+/* Floating Circles */
+body::before{
+content:"";
+position:absolute;
+width:300px;
+height:300px;
+border-radius:50%;
+background:#00ffff;
+top:-100px;
+left:-100px;
+opacity:.15;
+filter:blur(70px);
+}
+body::after{
+content:"";
+position:absolute;
+width:300px;
+height:300px;
+border-radius:50%;
+background:#00ffff;
+bottom:-100px;
+right:-100px;
+opacity:.15;
+filter:blur(70px);
+}
+.container{
+width:400px;
+position:relative;
+z-index:2;
+}
+.card{
+background:rgba(255,255,255,0.08);
+border:1px solid rgba(255,255,255,0.1);
+backdrop-filter:blur(25px);
+padding:45px;
+border-radius:30px;
+box-shadow:
+0 8px 32px rgba(0,0,0,0.35);
+}
+.logo{
+font-size:60px;
+text-align:center;
+margin-bottom:10px;
+}
+.card h1{
+text-align:center;
+color:#00ffff;
+font-size:34px;
+margin-bottom:10px;
+}
+.card p{
+text-align:center;
+color:#cbd5e1;
+margin-bottom:35px;
+}
+.input-box{
+margin-bottom:25px;
+}
+.input-box label{
+display:block;
+margin-bottom:8px;
+color:#ffffff;
+font-size:15px;
+}
+.input-box input{
+width:100%;
+padding:15px;
+border:none;
+outline:none;
+border-radius:15px;
+background:rgba(255,255,255,0.1);
+color:white;
+font-size:15px;
+border:1px solid rgba(255,255,255,0.1);
+transition:.3s;
+}
+.input-box select{
+width:100%;
+padding:15px;
+border:none;
+outline:none;
+border-radius:15px;
+background:rgba(255,255,255,0.1);
+color:white;
+font-size:15px;
+border:1px solid rgba(255,255,255,0.1);
+transition:.3s;
+appearance:none;
+}
+.input-box select:focus{
+border:1px solid #00ffff;
+box-shadow:0 0 15px #00ffff55;
+}
+.input-box select option{
+background:#1e293b;
+color:white;
+}
+.input-box input:focus{
+
+border:1px solid #00ffff;
+
+box-shadow:0 0 15px #00ffff55;
+}
+.input-box input::placeholder{
+color:#cbd5e1;
+}
+.options{
+
+display:flex;
+
+justify-content:space-between;
+
+align-items:center;
+
+font-size:14px;
+
+margin-bottom:30px;
+
+color:#d1d5db;
+
+}
+
+
+
+.options a{
+
+text-decoration:none;
+
+color:#00ffff;
+
+}
+
+
+
+.options a:hover{
+
+text-decoration:underline;
+
+}
+
+
+
+.login-btn{
+
+width:100%;
+
+padding:15px;
+
+border:none;
+
+border-radius:40px;
+
+background:#00ffff;
+
+color:#000;
+
+font-size:18px;
+
+font-weight:600;
+
+cursor:pointer;
+
+transition:.3s;
+}
+.login-btn:hover{
+transform:translateY(-5px);
+box-shadow:0 0 25px #00ffff;
+}
+.register{
+text-align:center;
+margin-top:30px;
+color:#cbd5e1;
+}
+.register a{
+color:#00ffff;
+text-decoration:none;
+font-weight:600;
+}
+.register a:hover{
+text-decoration:underline;
+}
+@media(max-width:450px){
+.container{
+width:90%;
+}
+.card{
+padding:30px;
+}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+<div class="logo">
+🤖
+</div>
+<h1>
+AI Study Hub
+</h1>
+<p>
+Welcome Back!
+Login to continue your learning journey.
+</p>
+<form id="loginForm">
+<div class="input-box">
+<label>
+Email ID
+</label>
+<input
+type="email"
+id="email"
+placeholder="Enter your email"
+required>
+</div>
+<div class="input-box">
+<label>
+Password
+</label>
+<input
+type="password"
+id="password"
+placeholder="Enter your password"
+required>
+</div>
+<div class="input-box">
+<label>
+Role
+</label>
+
+<select id="role" required>
+
+<option value="">Select Role</option>
+
+<option value="admin">Admin</option>
+
+<option value="user">User</option>
+
+</select>
+
+</div>
+
+
+<div class="options">
+
+<label>
+
+<input type="checkbox">
+
+Remember me
+
+</label>
+
+
+<a href="/forgot-password">Forgot Password?</a>
+
+
+
+</a>
+
+</div>
+<button type="submit"
+class="login-btn">
+Login
+</button>
+<div class="register">
+
+Don't have an account?
+
+<a href="/register">
+
+Register
+
+</a>
+
+</div>
+
+
+
+</form>
+
+
+</div>
+
+
+</div>
+
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+    const role = document.getElementById('role').value;
+
+    if (!role) {
+        alert('Please select a role');
+        return;
+    }
+
+    fetch('/api/login', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            email,
+            password,
+            role
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+
+            if (role === "admin") {
+                window.location.href = '/admin-dashboard';
+            } else {
+                window.location.href = '/dashboard';
+            }
+        } else {
+            alert('❌ ' + data.error);
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert('❌ An error occurred during login. Please try again.');
+    });
+});
+</script>
+</body>
+
+</html>

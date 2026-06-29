@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Study Hub</title>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+
+</head>
+
+<body>
+
+    <!-- Animated Background -->
+
+    <div class="circles">
+
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+        <span></span>
+
+    </div>
+
+    <!-- Navbar -->
+
+    <nav>
+
+        <div class="logo">
+
+            AI Study Hub
+
+        </div>
+
+        <div class="nav-buttons">
+
+            <a href="/login" class="login-btn">
+
+                Login
+
+            </a>
+
+            <a href="/register" class="register-btn">
+
+                Register
+
+            </a>
+
+        </div>
+
+    </nav>
+
+
+    <!-- Hero Section -->
+
+    <section class="hero">
+
+        <div class="hero-content">
+
+            <h1>
+
+                AI Study Hub
+
+            </h1>
+
+            <h2>
+
+                A Personalized Academic Resource Sharing
+                and Recommendation Platform Using Machine Learning
+
+            </h2>
+
+            <p>
+
+                Upload, Search, Download and Discover
+                Smart Study Materials with AI Recommendations.
+
+            </p>
+
+            <div class="hero-buttons">
+
+                <a href="/login" class="btn1">
+
+                    Get Started
+
+                </a>
+
+                <a href="/register" class="btn2">
+
+                    Create Account
+
+                </a>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+
+    <!-- Features -->
+
+    <section class="features">
+
+        <h1>
+
+            Features
+
+        </h1>
+
+
+        <div class="cards">
+
+            <div class="card">
+
+                <h2>
+
+                    📤 Upload PDFs
+
+                </h2>
+
+                <p>
+
+                    Upload Notes, Question Papers and Study Materials.
+
+                </p>
+
+            </div>
+
+
+
+            <div class="card">
+
+                <h2>
+
+                    🔍 Smart Search
+
+                </h2>
+
+                <p>
+
+                    NLP Based Search using TF-IDF and Cosine Similarity.
+
+                </p>
+
+            </div>
+
+
+
+            <div class="card">
+
+                <h2>
+
+                    🤖 AI Recommendations
+
+                </h2>
+
+                <p>
+
+                    Get Personalized Study Material Recommendations.
+
+                </p>
+
+            </div>
+
+
+
+            <div class="card">
+
+                <h2>
+
+                    🔥 Trending Resources
+
+                </h2>
+
+                <p>
+
+                    Explore Most Downloaded and Popular PDFs.
+
+                </p>
+
+            </div>
+
+
+        </div>
+
+    </section>
+
+
+
+    <!-- Footer -->
+
+    <footer>
+
+        <h3>
+
+            © 2026 AI Study Hub
+
+        </h3>
+
+        <p>
+
+            Powered by Machine Learning & NLP
+
+        </p>
+
+    </footer>
+
+
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+
+</body>
+
+</html>

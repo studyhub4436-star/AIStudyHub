@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Study Hub | All Users</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:'Poppins',sans-serif;
+}
+
+body{
+    min-height:100vh;
+    background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);
+    padding:40px;
+    color:white;
+}
+
+.container{
+    max-width:1200px;
+    margin:auto;
+}
+
+.header{
+    text-align:center;
+    margin-bottom:40px;
+}
+
+.header h1{
+    color:#00ffff;
+    font-size:40px;
+}
+
+.header p{
+    color:#cbd5e1;
+}
+
+.users-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+    gap:25px;
+}
+
+.user-card{
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.1);
+    backdrop-filter:blur(20px);
+    border-radius:25px;
+    padding:25px;
+    box-shadow:0 8px 32px rgba(0,0,0,0.35);
+}
+
+.user-card h3{
+    color:#00ffff;
+    margin-bottom:10px;
+}
+
+.user-card p{
+    color:#cbd5e1;
+    margin:6px 0;
+}
+
+.back-btn{
+    display:inline-block;
+    margin-top:30px;
+    text-decoration:none;
+    background:#00ffff;
+    color:black;
+    padding:12px 25px;
+    border-radius:30px;
+    font-weight:600;
+}
+
+.back-btn:hover{
+    box-shadow:0 0 20px #00ffff;
+}
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="header">
+        <h1>👥 All Users</h1>
+        <p>Registered Users in AI Study Hub</p>
+    </div>
+
+    <div class="users-grid">
+
+        {% for user in users %}
+        <div class="user-card">
+            <h3>{{ user.name }}</h3>
+
+            <p>📧 {{ user.email }}</p>
+
+            {% if user.branch %}
+            <p>🏫 {{ user.branch }}</p>
+            {% endif %}
+
+            {% if user.year %}
+            <p>📚 {{ user.year }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <a href="/admin-dashboard" class="back-btn">
+        ⬅ Back to Dashboard
+    </a>
+
+</div>
+
+</body>
+</html>
