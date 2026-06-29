@@ -80,10 +80,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # ==========================================
 def send_email_otp(to_email, otp):
     smtp_server = os.getenv('SMTP_SERVER', 'smtp.gmail.com')
-    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_port = int(os.getenv('SMTP_PORT', '465'))
     sender_email = os.getenv('SMTP_EMAIL')
     sender_password = os.getenv('SMTP_PASSWORD')
-   
+
     if not sender_email or not sender_password or sender_email == "your-email@gmail.com":
         print("[SMTP ERROR] SMTP_EMAIL or SMTP_PASSWORD not configured. Cannot send email.")
         return False
@@ -97,34 +97,23 @@ def send_email_otp(to_email, otp):
 
         body = f"""
         <html>
-        <body style="font-family: Arial, sans-serif; background-color: #0f172a; color: #ffffff; padding: 20px; border-radius: 10px;">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <h1 style="color: #00ffff; margin-bottom: 5px;">🤖 AI Study Hub</h1>
-                <p style="color: #cbd5e1; font-size: 16px;">Smart academic resource sharing platform</p>
-            </div>
-            <div style="background-color: #1e293b; padding: 30px; border-radius: 15px; border: 1px solid #334155; text-align: center;">
-                <h2 style="color: #ffffff; margin-top: 0;">Email Verification</h2>
-                <p style="color: #cbd5e1; font-size: 15px;">Use the following security code to verify your account registration. This code is valid for 5 minutes.</p>
-                <div style="display: inline-block; background-color: #0f172a; border: 1px solid #00ffff; color: #00ffff; font-size: 32px; font-weight: bold; letter-spacing: 5px; padding: 15px 30px; border-radius: 10px; margin: 20px 0;">
-                    {otp}
-                </div>
-                <p style="color: #94a3b8; font-size: 13px; margin-bottom: 0;">If you did not request this, please ignore this email.</p>
-            </div>
-            <div style="text-align: center; margin-top: 20px; color: #64748b; font-size: 12px;">
-                &copy; 2026 AI Study Hub. Powered by Machine Learning.
-            </div>
+        <body>
+            <h2>AI Study Hub OTP</h2>
+            <p>Your OTP is:</p>
+            <h1>{otp}</h1>
         </body>
         </html>
         """
         msg.attach(MIMEText(body, 'html'))
 
-        # Standard SMTP connection
-        server = smtplib.SMTP(smtp_server, smtp_port)
-        server.starttls()
+        # ✅ SMTP SSL CONNECTION
+        server = smtplib.SMTP_SSL(smtp_server, 465)
         server.login(sender_email, sender_password)
         server.sendmail(sender_email, to_email, msg.as_string())
         server.quit()
+
         return True
+
     except Exception as e:
         print(f"[SMTP ERROR] Failed to send email via SMTP: {e}")
         return False
