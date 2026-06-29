@@ -33,18 +33,28 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', 'default_super_secret_key_12345')
 
 # MongoDation
-MONGO_URI = os.getenv('MONGO_URI', 'mongodb://localhost:27017/')
-MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'aistudyhub')
+# MongoDation
+MONGO_URI = os.getenv('MONGO_URI')
+MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'studyhub')
 
 try:
-    # Attempt real connection with a short timeout
-    client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=1500)
-    client.admin.command('ping')
+    client = MongoClient(
+        MONGO_URI,
+        serverSelectionTimeoutMS=10000,  # ⬅ important (10 sec)
+        connectTimeoutMS=10000,
+        socketTimeoutMS=10000,
+        tls=True,
+        retryWrites=True
+    )
+
+    client.admin.command('ping')  # force real connection test
     db = client[MONGO_DB_NAME]
-    print("[DATABASE] Connected successfully to MongoDB at " + MONGO_URI)
+
+    print("[DATABASE] Connected successfully to MongoDB")
+
 except Exception as e:
     print(f"[DATABASE WARNING] Could not connect to MongoDB: {e}")
-    print("[DATABASE WARNING] Falling back to in-memory mongomock. Data will NOT persist across restarts!")
+    print("[DATABASE WARNING] Falling back to mongomock (NO persistence)")
     import mongomock
     client = mongomock.MongoClient()
     db = client[MONGO_DB_NAME]
