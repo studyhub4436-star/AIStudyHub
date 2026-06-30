@@ -3,9 +3,8 @@ import random
 import string
 from datetime import datetime, timezone, timedelta
 from datetime import datetime, timezone
-import smtplib
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory
 from bson.objectid import ObjectId
 from pymongo import MongoClient, ASCENDING
@@ -78,38 +77,45 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # ==========================================
 # SMTP Email Helper
 # ==========================================
-def send_email_otp(to_email, otp):
-    smtp_server = "smtp.gmail.com"
-    smtp_port = 587
-    sender_email = os.getenv('SMTP_EMAIL')
-    sender_password = os.getenv('SMTP_PASSWORD')
+# ==========================================
+# Brevo Email Helper
+# ==========================================
 
-    if not sender_email or not sender_password:
-        print("[SMTP ERROR] Missing credentials")
-        return False
-
+def send_email_otp(email, otp):
     try:
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = to_email
-        msg['Subject'] = "AI Study Hub OTP"
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key["api-key"] = os.getenv("BREVO_API_KEY")
 
-        body = f"Your OTP is: {otp}"
-        msg.attach(MIMEText(body, 'plain'))
+        api_client = sib_api_v3_sdk.ApiClient(configuration)
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(api_client)
 
-        # ✅ IMPORTANT CHANGE HERE
-        server = smtplib.SMTP("smtp.gmail.com",587)
-        server.starttls()   # 🔥 REQUIRED for port 587
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, to_email, msg.as_string())
-        server.quit()
+        html = f"""
+        <html>
+        <body>
+            <h2>Study Hub OTP Verification</h2>
+            <p>Your OTP is:</p>
+            <h1>{otp}</h1>
+            <p>This OTP is valid for 5 minutes.</p>
+        </body>
+        </html>
+        """
 
+        email_data = sib_api_v3_sdk.SendSmtpEmail(
+            sender={
+                "name": "Study Hub",
+                "email": "studyhub4436@gmail.com"
+            },
+            to=[{"email": email}],
+            subject="Study Hub OTP Verification",
+            html_content=html
+        )
+
+        api_instance.send_transac_email(email_data)
         return True
 
     except Exception as e:
-        print(f"[SMTP ERROR] {e}")
+        print("Brevo Error:", e)
         return False
-
 # ==========================================
 # Page Routes
 # ==========================================
