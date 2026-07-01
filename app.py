@@ -1050,5 +1050,9 @@ def api_download(doc_id):
     except Exception as e:
         return f"Download failed: {str(e)}", 500
 if __name__ == "__main__":
+<<<<<<< HEAD
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+=======
+    app.run(debug=True)
+>>>>>>> 59f1017 (clean push without secrets)
