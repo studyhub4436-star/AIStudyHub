@@ -13,11 +13,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 import numpy as np
 from datetime import datetime, timezone
-
-
 def is_locked(pdf):
     lock_time = pdf.get("locked_until")
-
     if not lock_time:
         return False
 
@@ -70,10 +67,20 @@ users_col.create_index('email', unique=True)
 otps_col.create_index('created_at', expireAfterSeconds=300)
 
 # Folder Configuration
-UPLOAD_FOLDER = os.path.join(app.root_path, 'uploads')
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+# Maximum file size = 50 MB
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
+# Only PDF allowed
+ALLOWED_EXTENSIONS = {'pdf', 'doc', "docx"}
+
+def allowed_file(filename):
+    return (
+        '.' in filename and
+        filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+    )
 # ==========================================
 # SMTP Email Helper
 # ==========================================
@@ -223,6 +230,7 @@ def admin_dashboard():
 
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
     if session.get("role") != "admin":
         return redirect(url_for("dashboard"))
 
@@ -230,11 +238,35 @@ def admin_dashboard():
     total_pdfs = docs_col.count_documents({})
     total_downloads = downloads_col.count_documents({})
 
+    # PDFs
+    pdfs_raw = list(docs_col.find().sort("upload_date", -1))
+    pdfs = []
+
+    for pdf in pdfs_raw:
+
+        if is_locked(pdf):
+            continue
+
+        user = users_col.find_one({"_id": ObjectId(pdf["uploader_id"])})
+
+        pdfs.append({
+            "_id": pdf["_id"],
+            "title": pdf.get("title", ""),
+            "subject": pdf.get("subject", ""),
+            "uploaded_by": user["email"] if user else "Unknown",
+            "hidden": pdf.get("hidden", False)
+        })
+
+    # Users
+    users = list(users_col.find())
+
     return render_template(
         'admin_dashboard.html',
         total_users=total_users,
         total_pdfs=total_pdfs,
-        total_downloads=total_downloads
+        total_downloads=total_downloads,
+        pdfs=pdfs,
+        users=users
     )
 
 
@@ -335,7 +367,7 @@ def admin_delete_pdf(doc_id):
             'document_id': doc_id
         })
 
-    return redirect('/admin/pdfs')
+    return redirect(url_for('admin_dashboard'))
 @app.route('/admin/hide-pdf/<doc_id>')
 def hide_pdf(doc_id):
 
@@ -349,7 +381,7 @@ def hide_pdf(doc_id):
         {'$set': {'hidden': True}}
     )
 
-    return redirect('/admin/pdfs')
+    return redirect(url_for('admin_dashboard'))
 @app.route('/admin/unhide-pdf/<doc_id>')
 def unhide_pdf(doc_id):
 
@@ -362,7 +394,7 @@ def unhide_pdf(doc_id):
         {'$set': {'hidden': False}}
     )
 
-    return redirect('/admin/pdfs')
+    return redirect(url_for('admin_dashboard'))
 
 
 # ==========================================
@@ -533,23 +565,44 @@ def delete_upload(doc_id):
             "success": False,
             "message": str(e)
         })
+@app.route('/files/<filename>')
+def serve_file(filename):
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 @app.route('/preview/<doc_id>')
 def preview_pdf(doc_id):
 
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    doc = docs_col.find_one({
-        "_id": ObjectId(doc_id)
-    })
-
+    doc = docs_col.find_one({"_id": ObjectId(doc_id)})
     if not doc:
         return "File Not Found", 404
 
-    return send_from_directory(
-        app.config['UPLOAD_FOLDER'],
-        doc['filename']
-    )
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+
+    if not os.path.exists(file_path):
+        return "File missing in server uploads folder", 404
+
+    ext = doc['filename'].rsplit('.', 1)[1].lower()
+
+    # ✅ PDF → OPEN IN BROWSER (NOT DOWNLOAD)
+    if ext == "pdf":
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            doc['filename'],
+            as_attachment=False,   # 🔥 THIS IS THE FIX
+            mimetype='application/pdf'
+        )
+
+    # ✅ DOC / DOCX → STILL OPEN INLINE (browser dependent)
+    elif ext in ["doc", "docx"]:
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            doc['filename'],
+            as_attachment=False
+        )
+
+    return "Unsupported file type", 400
 # ==========================================
 # Authentication & OTP Endpoints
 # ==========================================
@@ -828,8 +881,13 @@ def api_upload():
         
     if file.filename == '':
         return jsonify({'success': False, 'error': 'No file selected'}), 400
-        
-    # Secure filename and add timestamp prefix to avoid collisions
+    if not allowed_file(file.filename):
+        return jsonify({
+        'success': False,
+        'error': 'Only PDF & DOCS files are allowed.'
+    }), 400
+
+    #Secure filename and add timestamp prefix to avoid collisions
     orig_name = secure_filename(file.filename)
     unique_prefix = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
     filename = f"{unique_prefix}_{orig_name}"
@@ -852,9 +910,24 @@ def api_upload():
             'upload_date': datetime.now(timezone.utc)
         })
         
-        return jsonify({'success': True, 'message': 'File uploaded successfully'})
+        # Get uploaded file extension
+        file_ext = file.filename.rsplit('.', 1)[1].lower()
+
+        if file_ext == "pdf":
+            message = "PDF uploaded successfully."
+        else:
+            message = "Document uploaded successfully."
+
+        return jsonify({
+            'success': True,
+            'message': message
+        })
     except Exception as e:
-        return jsonify({'success': False, 'error': f'File upload failed: {str(e)}'}), 500
+        return jsonify({
+        'success': False,
+        'error': f'File upload failed: {str(e)}'
+    }), 500
+    
 
 @app.route('/api/search', methods=['GET'])
 def api_search():
@@ -940,38 +1013,41 @@ def api_search():
             })
         return jsonify(results)
 
-@app.route('/api/download/<doc_id>', methods=['GET'])
+@app.route('/api/download/<doc_id>')
 def api_download(doc_id):
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    if session.get("role") != "admin":
-        return redirect(url_for("dashboard"))
-        
+
     try:
         doc = docs_col.find_one({'_id': ObjectId(doc_id)})
+
         if not doc:
             return "File not found", 404
-            
-        # Log download history
+
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+
+        if not os.path.exists(file_path):
+            return "File not found in server", 404
+
         downloads_col.insert_one({
             'user_id': session['user_id'],
             'document_id': doc_id,
             'download_date': datetime.now(timezone.utc)
         })
-        
-        # Increment downloads count on the document
+
         docs_col.update_one(
             {'_id': ObjectId(doc_id)},
             {'$inc': {'downloads_count': 1}}
         )
-        
-        # Send file from directory
-        return send_from_directory(app.config['UPLOAD_FOLDER'], doc['filename'], as_attachment=True, download_name=doc['title'] + '.pdf')
+
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            doc['filename'],
+            as_attachment=True,
+            download_name=doc['title']
+        )
+
     except Exception as e:
         return f"Download failed: {str(e)}", 500
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
-
-
-
+if __name__ == "__main__":
+    app.run(debug=True)
