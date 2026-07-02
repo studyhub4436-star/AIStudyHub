@@ -1021,7 +1021,7 @@ def api_download(doc_id):
 
     try:
         doc = docs_col.find_one({'_id': ObjectId(doc_id)})
-
+        print(doc)
         if not doc:
             return "File not found", 404
 
@@ -1041,11 +1041,17 @@ def api_download(doc_id):
             {'$inc': {'downloads_count': 1}}
         )
 
+        # Ensure download name has the correct extension
+        ext = doc['filename'].rsplit('.', 1)[1].lower() if '.' in doc['filename'] else ''
+        download_name = doc['title']
+        if ext and not download_name.lower().endswith('.' + ext):
+            download_name = f"{download_name}.{ext}"
+
         return send_from_directory(
             app.config['UPLOAD_FOLDER'],
             doc['filename'],
             as_attachment=True,
-            download_name=doc['title']
+            download_name=download_name
         )
 
     except Exception as e:

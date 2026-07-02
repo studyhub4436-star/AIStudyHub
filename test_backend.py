@@ -159,5 +159,57 @@ class AIStudyHubTestCase(unittest.TestCase):
         self.assertEqual(user['branch'], 'IT')
         self.assertEqual(user['year'], '3rd Year')
 
+    def test_api_download(self):
+        """Test file download API and verify file extension preservation."""
+        # 1. Insert mock user
+        user_id = self.test_users.insert_one({
+            'name': 'Test User',
+            'email': 'test@example.com',
+            'password_hash': 'xxx'
+        }).inserted_id
+
+        # 2. Insert mock document
+        doc_id = self.test_docs.insert_one({
+            'title': 'My Physics Notes',
+            'filename': '20260702_physics.pdf',
+            'downloads_count': 0
+        }).inserted_id
+
+        # Create dummy file to avoid 404
+        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+        dummy_file_path = os.path.join(app.config['UPLOAD_FOLDER'], '20260702_physics.pdf')
+        with open(dummy_file_path, 'w') as f:
+            f.write('%PDF-1.7 dummy pdf content')
+
+        response = None
+        try:
+            # 3. Log in by setting session
+            with self.client.session_transaction() as sess:
+                sess['user_id'] = str(user_id)
+
+            # 4. Request download
+            response = self.client.get(f'/api/download/{doc_id}')
+            self.assertEqual(response.status_code, 200)
+
+            # Verify download name has extension in Content-Disposition
+            content_disp = response.headers.get('Content-Disposition')
+            self.assertIsNotNone(content_disp)
+            self.assertIn('filename="My Physics Notes.pdf"', content_disp)
+
+            # Verify database download count incremented
+            doc = self.test_docs.find_one({'_id': doc_id})
+            self.assertEqual(doc.get('downloads_count'), 1)
+
+            # Verify downloads collection record created
+            dl = self.test_downloads.find_one({'user_id': str(user_id), 'document_id': str(doc_id)})
+            self.assertIsNotNone(dl)
+
+        finally:
+            if response is not None:
+                response.close()
+            # Clean up dummy file
+            if os.path.exists(dummy_file_path):
+                os.remove(dummy_file_path)
+
 if __name__ == '__main__':
     unittest.main()
