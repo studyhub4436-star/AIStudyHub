@@ -309,11 +309,6 @@ def admin_pdfs():
     pdfs = []
 
     for pdf in pdfs_raw:
-
-        # 🔒 locked PDFs skip
-        if is_locked(pdf):
-            continue
-
         user = users_col.find_one({'_id': ObjectId(pdf['uploader_id'])})
 
         pdfs.append({
@@ -336,15 +331,6 @@ def admin_preview(doc_id):
 
     if not doc:
         return "File Not Found", 404
-
-    # 🔒 START LOCK (20 minutes)
-    docs_col.update_one(
-        {'_id': ObjectId(doc_id)},
-        {'$set': {
-            'locked_until': datetime.now(timezone.utc) + timedelta(minutes=20)
-        }}
-    )
-
     return send_from_directory(
         app.config['UPLOAD_FOLDER'],
         doc['filename']
