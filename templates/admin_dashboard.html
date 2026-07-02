@@ -292,6 +292,9 @@ function togglePDFs() {
         pdfs.scrollIntoView({ behavior: "smooth" });
     }
 }
+setInterval(function () {
+    location.reload();
+}, 5000); // 5 seconds
 </script>
 
 </body>
