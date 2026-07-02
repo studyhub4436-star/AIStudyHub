@@ -738,7 +738,7 @@ def api_login():
             "error": "Invalid Password."
         }), 401
 
-    ADMIN_EMAIL = "studyhub4436@gmail.com"
+    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "studyhub4436@gmail.com")
 
     # -----------------------------
     # ADMIN LOGIN
