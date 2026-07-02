@@ -577,6 +577,9 @@ def preview_pdf(doc_id):
         return "File Not Found", 404
 
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+    print("Filename from DB:", doc['filename'])
+    print("Full path:", file_path)
+    print("Exists:", os.path.exists(file_path))
 
     if not os.path.exists(file_path):
         return "File missing in server uploads folder", 404
