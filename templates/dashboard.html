@@ -259,7 +259,8 @@
                     type="text"
                     id="uploadSubject"
                     placeholder="Subject"
-                    required>
+                    required
+                    oninput="this.value=this.value.replace(/[^A-Za-z\s]/g,'')">
 
                 <input
                     type="file"
@@ -289,8 +290,8 @@
 
                     <p>{{ file.downloads }} Downloads</p>
 
-                  <button onclick="downloadFile('{{ file.id }}')">Download</button>
-                <button onclick="previewFile('{{ file.id }}')">Preview</button>
+                <button onclick="downloadFile('{{ file.id }}')">Download</button>
+<button onclick="previewTrending('{{ file.id }}')">Preview</button>
                 </div>
                 {% else %}
                 <div class="card" style="width: 100%; grid-column: 1/-1;">
@@ -298,6 +299,14 @@
                 </div>
                 {% endfor %}
             </div>
+            <div id="trendingPreviewContainer" style="display:none; margin-top:20px;">
+    <iframe
+        id="trendingPdfViewer"
+        width="100%"
+        height="600"
+        style="border:1px solid #ccc;border-radius:10px;">
+    </iframe>
+</div>
 
         </section>
 
@@ -316,10 +325,7 @@
                     <p>Similarity : {{ file.similarity }}%</p>
 
                     <button onclick="downloadFile('{{ file.id }}')">Download</button>
-                    <button onclick="previewFile('{{ file.id }}')">Preview</button>
-   
-</button>
-
+                   <button onclick="previewRecommendation('{{ file.id }}')">Preview</button>
                 </div>
                 {% else %}
                 <div class="card" style="width: 100%; grid-column: 1/-1;">
@@ -327,6 +333,14 @@
                 </div>
                 {% endfor %}
             </div>
+            <div id="recommendationPreviewContainer" style="display:none; margin-top:20px;">
+    <iframe
+        id="recommendationPdfViewer"
+        width="100%"
+        height="600"
+        style="border:1px solid #ccc;border-radius:10px;">
+    </iframe>
+</div>
 
         </section>
 

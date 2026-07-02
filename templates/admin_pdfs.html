@@ -93,28 +93,7 @@
 </div>
 
 {% endfor %}
-<h2>All PDFs</h2>
 
-<table border="1" cellpadding="10">
-    <tr>
-        <th>File Name</th>
-        <th>Actions</th>
-    </tr>
-
-    {% for pdf in pdfs %}
-    <tr>
-        <td>{{ pdf.filename }}</td>
-
-        <td>
-            <!-- Preview -->
-            <a href="/preview/{{ pdf._id }}" target="_blank">👁 Preview</a>
-
-            <!-- Download -->
-            <a href="/download/{{ pdf._id }}">⬇ Download</a>
-        </td>
-    </tr>
-    {% endfor %}
-</table>
 
 </body>
 </html>

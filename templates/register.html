@@ -162,6 +162,19 @@ text-decoration:none;
 color:#00ffff;
 font-weight:600;
 }
+.input-box {
+  position: relative;
+}
+
+.eye {
+  position: absolute;
+  right: 15px;
+  top: 40px;
+  cursor: pointer;
+  user-select: none;
+  color: #cbd5e1;
+  font-size: 18px;
+}
 
 @media(max-width:500px){
 .container{
@@ -255,21 +268,15 @@ Send OTP
 </div>
 
 <div class="input-box">
-<label>Password</label>
-<input
-type="password"
-id="password"
-placeholder="Create password"
-required>
+    <label>Password</label>
+<input type="password" id="password" placeholder="Create password" required>
+<span class="eye" onclick="togglePassword('password')">👁</span>
 </div>
 
 <div class="input-box">
 <label>Confirm Password</label>
-<input
-type="password"
-id="confirmPassword"
-placeholder="Confirm password"
-required>
+<input type="password" id="confirmPassword" placeholder="Confirm password" required>
+<span class="eye" onclick="togglePassword('confirmPassword')">👁</span>
 </div>
 
 <button type="submit" class="register-btn">
@@ -369,6 +376,17 @@ document.getElementById("registerForm").addEventListener("submit", function(e){
         alert("❌ Registration failed. Please try again.");
     });
 });
+function togglePassword(id) {
+    const input = document.getElementById(id);
+
+    if (!input) return;
+
+    if (input.type === "password") {
+        input.type = "text";
+    } else {
+        input.type = "password";
+    }
+}
 </script>
 
 </body>

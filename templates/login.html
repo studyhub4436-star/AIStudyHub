@@ -209,6 +209,25 @@ font-weight:600;
 .register a:hover{
 text-decoration:underline;
 }
+.password-field {
+  position: relative;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 40px;
+}
+
+.eye {
+  position: absolute;
+  right: 15px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  user-select: none;
+  color: #cbd5e1;
+  font-size: 18px;
+}
 @media(max-width:450px){
 .container{
 width:90%;
@@ -244,14 +263,13 @@ placeholder="Enter your email"
 required>
 </div>
 <div class="input-box">
-<label>
-Password
-</label>
-<input
-type="password"
-id="password"
-placeholder="Enter your password"
-required>
+  <label>Password</label>
+
+  <div class="password-field">
+    <input type="password" id="password" placeholder="Enter your password" required>
+
+    <span class="eye" onclick="togglePassword('password')">👁</span>
+  </div>
 </div>
 <div class="input-box">
 <label>
@@ -300,7 +318,6 @@ Don't have an account?
 <a href="/register">
 
 Register
-
 </a>
 
 </div>
@@ -358,6 +375,17 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
         alert('❌ An error occurred during login. Please try again.');
     });
 });
+function togglePassword(id) {
+    const input = document.getElementById(id);
+
+    if (!input) return;
+
+    if (input.type === "password") {
+        input.type = "text";
+    } else {
+        input.type = "password";
+    }
+}
 </script>
 </body>
 

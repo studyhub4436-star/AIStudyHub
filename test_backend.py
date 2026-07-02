@@ -110,7 +110,8 @@ class AIStudyHubTestCase(unittest.TestCase):
         # 3. Login
         login_payload = {
             'email': 'testuser@example.com',
-            'password': 'password123'
+            'password': 'password123',
+            'role': 'user'
         }
         login_response = self.client.post('/api/login',
                                           data=json.dumps(login_payload),

@@ -151,20 +151,148 @@ body::after{
 <a href="/dashboard" class="action-btn">
     📤 Upload PDF
 </a>
-    <a href="/admin/users" class="action-btn">
-        👥 View All Users
-    </a>
-
-    <a href="/admin/pdfs" class="action-btn">
-        📄 View All PDFs
-    </a>
+   <a href="javascript:void(0)"
+   class="action-btn"
+   onclick="toggleUsers()">
+    👥 View All Users
+</a>
+    <a href="javascript:void(0)"
+   class="action-btn"
+   onclick="togglePDFs()">
+    📄 View All PDFs
+</a>
 
     <a href="/logout" class="action-btn logout">
         🚪 Logout
     </a>
 
 </div>
+<div id="pdfList" style="display:none; margin-top:40px;">
 
-</a>
+    <h2 style="margin-bottom:20px;color:#00ffff;">
+        📚 All PDFs
+    </h2>
+
+    {% for pdf in pdfs %}
+
+    <div class="card" style="margin-bottom:20px; text-align:left;">
+
+        <h3>📄 {{ pdf.title }}</h3>
+
+        <p>📚 Subject : {{ pdf.subject }}</p>
+
+        <p>👤 Uploaded By : {{ pdf.uploaded_by }}</p>
+
+        <br>
+
+        <a class="action-btn"
+           href="/admin/preview/{{ pdf._id }}">
+            👀 Preview
+        </a>
+
+        <a class="action-btn"
+           href="/admin/delete-pdf/{{ pdf._id }}"
+           onclick="return confirm('Delete this PDF?')">
+            🗑 Delete
+        </a>
+
+        {% if pdf.hidden %}
+
+        <a class="action-btn"
+           href="/admin/unhide-pdf/{{ pdf._id }}">
+            👁️ Unhide
+        </a>
+
+        {% else %}
+
+        <a class="action-btn"
+           href="/admin/hide-pdf/{{ pdf._id }}">
+            🚫 Hide
+        </a>
+
+        {% endif %}
+
+    </div>
+
+    {% endfor %}
+
+</div>
+<div id="userList" style="display:none; margin-top:40px;">
+
+    <h2 style="
+        text-align:center;
+        color:#00ffff;
+        margin-bottom:25px;
+        font-size:28px;
+        letter-spacing:1px;
+    ">
+        👥 All Users
+    </h2>
+
+    <div style="
+        display:grid;
+        grid-template-columns:repeat(auto-fit, minmax(280px, 1fr));
+        gap:20px;
+    ">
+
+        {% for user in users %}
+
+        <div style="
+            border-radius:18px;
+            padding:20px;
+            background:rgba(255,255,255,0.06);
+            border:1px solid rgba(0,255,255,0.15);
+            backdrop-filter: blur(10px);
+        ">
+
+            <h3 style="color:#00ffff;">
+                👤 {{ user.name }}
+            </h3>
+
+            <p>📧 {{ user.email }}</p>
+            <p>🏫 {{ user.branch }}</p>
+            <p>📚 {{ user.year }}</p>
+
+        </div>
+
+        {% endfor %}
+
+    </div>
+
+</div>
+<script>
+function toggleUsers() {
+    let users = document.getElementById("userList");
+    let pdfs = document.getElementById("pdfList");
+
+    // close PDFs
+    pdfs.style.display = "none";
+
+    // toggle users
+    if (users.style.display === "block") {
+        users.style.display = "none";
+    } else {
+        users.style.display = "block";
+        users.scrollIntoView({ behavior: "smooth" });
+    }
+}
+
+function togglePDFs() {
+    let pdfs = document.getElementById("pdfList");
+    let users = document.getElementById("userList");
+
+    // close users
+    users.style.display = "none";
+
+    // toggle pdfs
+    if (pdfs.style.display === "block") {
+        pdfs.style.display = "none";
+    } else {
+        pdfs.style.display = "block";
+        pdfs.scrollIntoView({ behavior: "smooth" });
+    }
+}
+</script>
+
 </body>
 </html>
