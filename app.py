@@ -127,7 +127,9 @@ def send_email_otp(email, otp):
         return True
 
     except Exception as e:
-        print("Brevo Error:", e)
+        import traceback
+        traceback.print_exc()
+        print("Brevo Error:", repr(e))
         return False
 # ==========================================
 # Page Routes
