@@ -5,6 +5,9 @@ from datetime import datetime, timezone, timedelta
 from datetime import datetime, timezone
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, jsonify, render_template, redirect, url_for, session, send_from_directory
 from bson.objectid import ObjectId
 from pymongo import MongoClient, ASCENDING
