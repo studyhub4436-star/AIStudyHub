@@ -30,11 +30,15 @@ load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 app.secret_key = os.getenv('SECRET_KEY', 'default_super_secret_key_12345')
-
+print("=" * 50)
+print("MONGO_URI exists:", bool(os.getenv("MONGO_URI")))
+print("MONGO_DB_NAME:", os.getenv("MONGO_DB_NAME"))
+print("BREVO_API_KEY exists:", bool(os.getenv("BREVO_API_KEY")))
+print("=" * 50)
 # MongoDation
 # MongoDation
 MONGO_URI = os.getenv('MONGO_URI')
-MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'cluster0')
+MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'studyhub')
 
 try:
     if not MONGO_URI:
@@ -130,7 +134,7 @@ def send_email_otp(email, otp):
         import traceback
         traceback.print_exc()
         print("Brevo Error:", repr(e))
-        return False
+    return False
 # ==========================================
 # Page Routes
 # ==========================================
