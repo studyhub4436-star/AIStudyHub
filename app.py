@@ -8,7 +8,7 @@ from flask import send_file
 from openpyxl import Workbook
 from flask import send_file
 from datetime import datetime, timezone, timedelta
-from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
 import smtplib
@@ -273,6 +273,79 @@ def dashboard_data():
             it
         ]
     })
+
+
+
+@app.route("/admin/users-data")
+def admin_users_data():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if session.get("role") != "admin":
+        return redirect(url_for("dashboard"))
+
+    users = list(users_col.find())
+
+    for user in users:
+
+        uid = str(user["_id"])
+
+        # Upload Count
+        user["uploads_count"] = docs_col.count_documents({
+            "uploader_id": uid
+        })
+
+        # Download Count
+        user["downloads_count"] = downloads_col.count_documents({
+            "user_id": uid
+        })
+
+        # Uploaded PDF Names
+        uploaded_docs = list(
+            docs_col.find(
+                {"uploader_id": uid},
+                {
+                    "original_name": 1,
+                    "filename": 1,
+                    "_id": 0
+                }
+            )
+        )
+
+        uploaded_names = []
+
+        for doc in uploaded_docs:
+
+            if doc.get("original_name"):
+                uploaded_names.append(doc["original_name"])
+
+            elif doc.get("filename"):
+                filename = doc["filename"]
+
+                if "_" in filename:
+                    filename = filename.split("_", 1)[1]
+
+                uploaded_names.append(filename)
+
+        user["uploaded_pdf_ids"] = ", ".join(uploaded_names) if uploaded_names else "-"
+
+        # ✅ Convert UTC -> Indian Time
+        if user.get("registered_date"):
+
+            utc_time = user["registered_date"]
+
+            if utc_time.tzinfo is None:
+                utc_time = utc_time.replace(tzinfo=timezone.utc)
+
+            user["registered_date_ist"] = utc_time.astimezone(
+                ZoneInfo("Asia/Kolkata")
+            )
+
+    return render_template(
+        "admin_users_data.html",
+        users=users
+    )
 @app.route('/admin-dashboard')
 def admin_dashboard():
 
@@ -290,6 +363,8 @@ def admin_dashboard():
     pdfs_raw = list(docs_col.find().sort("upload_date", -1))
     pdfs = []
 
+    ist = timezone(timedelta(hours=5, minutes=30))
+
     for pdf in pdfs_raw:
 
         if is_locked(pdf):
@@ -297,12 +372,17 @@ def admin_dashboard():
 
         user = users_col.find_one({"_id": ObjectId(pdf["uploader_id"])})
 
+        upload_date = pdf.get("upload_date")
+        if upload_date:
+            upload_date = upload_date.astimezone(ist)
+
         pdfs.append({
             "_id": pdf["_id"],
             "title": pdf.get("title", ""),
             "subject": pdf.get("subject", ""),
             "uploaded_by": user["email"] if user else "Unknown",
-            "hidden": pdf.get("hidden", False)
+            "hidden": pdf.get("hidden", False),
+            "upload_date": upload_date
         })
 
     # Users
@@ -314,22 +394,6 @@ def admin_dashboard():
         total_pdfs=total_pdfs,
         total_downloads=total_downloads,
         pdfs=pdfs,
-        users=users
-    )
-
-
-@app.route('/admin/users')
-def admin_users():
-
-    if 'user_id' not in session:
-        return redirect(url_for('login'))
-    if session.get("role") != "admin":
-        return redirect(url_for("dashboard"))
-
-    users = list(users_col.find())
-
-    return render_template(
-        'admin_users.html',
         users=users
     )
 @app.route("/admin/delete-users", methods=["POST"])
@@ -428,32 +492,7 @@ def delete_users():
     return jsonify({
         "success": True
     })
-@app.route("/admin/users-data")
-def admin_users_data():
 
-    if "user_id" not in session:
-        return redirect(url_for("login"))
-
-    if session.get("role") != "admin":
-        return redirect(url_for("dashboard"))
-
-    users = list(users_col.find())
-
-    for user in users:
-        uid = str(user["_id"])
-
-        user["uploads_count"] = docs_col.count_documents({
-            "uploader_id": uid
-        })
-
-        user["downloads_count"] = downloads_col.count_documents({
-            "user_id": uid
-        })
-
-    return render_template(
-        "admin_users_data.html",
-        users=users
-    )
 @app.route('/admin/pdfs')
 def admin_pdfs():
 
@@ -475,8 +514,7 @@ def admin_pdfs():
             'subject': pdf.get('subject', ''),
             'uploaded_by': user['email'] if user else 'Unknown',
             'hidden': pdf.get('hidden', False),
-    
-              "upload_date": pdf.get("upload_date")
+            "upload_date": pdf.get("upload_date"),
         })
 
     return render_template('admin_pdfs.html', pdfs=pdfs)
@@ -1188,19 +1226,22 @@ def api_upload():
     
     try:
         file.save(filepath)
-        
+        pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
         # Save document metadata in MongoDB
         docs_col.insert_one({
             'title': title,
+            'pdf_id': pdf_id,
             'description': description,
             'branch': branch,
             'year': year,
             'subject': subject,
             'filename': filename,
+ 'original_name': file.filename, 
+
             'downloads_count': 0,
             'hidden':False,
             'uploader_id': session['user_id'],
-            'upload_date': datetime.now(timezone.utc)
+            'upload_date': datetime.now(timezone(timedelta(hours=5, minutes=30)))
         })
         
         # Get uploaded file extension
