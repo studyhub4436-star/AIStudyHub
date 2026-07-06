@@ -59,11 +59,12 @@
         📄 {{ pdf.title }}
     </div>
 
-    <div class="meta">
-        📚 Subject: {{ pdf.subject }} <br>
-        👤 Uploaded By: {{ pdf.uploaded_by }}
-    </div>
-
+   <div class="meta">
+    📚 Subject: {{ pdf.subject }} <br>
+    👤 Uploaded By: {{ pdf.uploaded_by }} <br>
+    📅 Uploaded Date:
+    {{ pdf.upload_date.strftime("%d-%m-%Y ") if pdf.upload_date else "N/A" }}
+</div>
     <br>
 
     <a class="btn preview"

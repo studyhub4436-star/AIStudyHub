@@ -161,12 +161,19 @@ body::after{
    onclick="togglePDFs()">
     📄 View All PDFs
 </a>
-<a href="/admin/access-requests" class="action-btn">
+<a href="/admin/access-requests"
+   class="action-btn"
+   onclick="document.getElementById('pdfList').style.display='none';
+            document.getElementById('userList').style.display='none';
+            document.getElementById('userActions').style.display='none';">
     📩 Access Requests
 </a>
-    <a href="/logout" class="action-btn logout">
-        🚪 Logout
-    </a>
+<a href="/logout"
+   class="action-btn logout"
+   onclick="sessionStorage.clear()">
+    🚪 Logout
+</a>
+    
 
 </div>
 <div id="pdfList" style="display:none; margin-top:40px;">
@@ -185,7 +192,7 @@ body::after{
 
         <p>👤 Uploaded By : {{ pdf.uploaded_by }}</p>
 <p>📅 Uploaded Date :
-{{ pdf.upload_date.strftime("%d-%m-%Y %I:%M %p") if pdf.upload_date else "N/A" }}
+{{ pdf.upload_date.strftime("%d-%m-%Y ") if pdf.upload_date else "N/A" }}
 </p>
         <br>
 
@@ -377,31 +384,51 @@ function deleteSelectedUsers() {
         }
     });
 }
-function toggleUsers() {
-    localStorage.setItem("activeSection", "users");
+function toggleUsers(){
 
-    document.getElementById("pdfList").style.display = "none";
-    document.getElementById("userList").style.display = "block";
-    document.getElementById("userActions").style.display = "flex";
-}
+    let users=document.getElementById("userList");
+    let pdfs=document.getElementById("pdfList");
+    let actions=document.getElementById("userActions");
 
-function togglePDFs() {
-    localStorage.setItem("activeSection", "pdfs");
+    pdfs.style.display="none";
 
-    document.getElementById("userList").style.display = "none";
-    document.getElementById("userActions").style.display = "none";
-    document.getElementById("pdfList").style.display = "block";
-}
+    if(users.style.display==="block"){
 
-window.onload = function () {
-    const active = localStorage.getItem("activeSection");
+        users.style.display="none";
+        actions.style.display="none";
 
-    if (active === "users") {
-        toggleUsers();
-    } else if (active === "pdfs") {
-        togglePDFs();
+    }else{
+
+        users.style.display="block";
+        actions.style.display="flex";
+        users.scrollIntoView({behavior:"smooth"});
+
     }
-};
+
+}
+
+function togglePDFs(){
+
+    let pdfs=document.getElementById("pdfList");
+    let users=document.getElementById("userList");
+    let actions=document.getElementById("userActions");
+
+    users.style.display="none";
+    actions.style.display="none";
+
+    if(pdfs.style.display==="block"){
+
+        pdfs.style.display="none";
+
+    }else{
+
+        pdfs.style.display="block";
+        pdfs.scrollIntoView({behavior:"smooth"});
+
+    }
+
+}
+
 setInterval(function () {
     location.reload();
 }, 30000); //  30seconds
