@@ -212,7 +212,20 @@ flex-direction:column;
 
 <div class="input-box">
 <label>Email ID</label>
-<input type="email" id="email" placeholder="Enter your email" required>
+<input type="email"
+           id="email"
+           placeholder="Enter your email"
+           onchange="checkEmail()"
+           required>
+</div>
+<div id="requestAccessBox" style="display:none; margin-bottom:20px;">
+    <button
+        type="button"
+        class="send-otp-btn"
+        onclick="requestAccess()"
+        style="width:100%;">
+        Request Access
+    </button>
 </div>
 
 <div class="input-box">
@@ -227,10 +240,11 @@ placeholder="Enter OTP"
 required>
 
 <button
-type="button"
-class="send-otp-btn"
-onclick="sendOTP()">
-Send OTP
+    type="button"
+    id="sendOtpBtn"
+    class="send-otp-btn"
+    onclick="sendOTP()">
+    Send OTP
 </button>
 
 </div>
@@ -304,7 +318,7 @@ function sendOTP(){
         return;
     }
 
-    const sendBtn = document.querySelector(".send-otp-btn");
+ const sendBtn = document.getElementById("sendOtpBtn");
     sendBtn.disabled = true;
     sendBtn.innerText = "Sending...";
 
@@ -333,7 +347,82 @@ function sendOTP(){
         alert("❌ Failed to request OTP. Please try again.");
     });
 }
+let popupShown = false;
 
+function checkEmail() {
+
+    const email = document.getElementById("email").value.trim().toLowerCase();
+    const box = document.getElementById("requestAccessBox");
+    const otpBtn = document.getElementById("sendOtpBtn");
+
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailPattern.test(email)) {
+        box.style.display = "none";
+        otpBtn.disabled = false;
+        popupShown = false;
+        return;
+    }
+
+    fetch("/api/check-access", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email })
+    })
+    .then(res => res.json())
+    .then(data => {
+
+        if (data.approved) {
+
+            box.style.display = "none";
+            otpBtn.disabled = false;
+            otpBtn.style.opacity = "1";
+            popupShown = false;
+
+        } else {
+
+            box.style.display = "block";
+            otpBtn.disabled = true;
+            otpBtn.style.opacity = "0.5";
+
+            if (!popupShown) {
+                alert("⚠️ This application is primarily for Sasi Institute users.\n\nIf you are using a Gmail or another email address, please click 'Request Access'.");
+                popupShown = true;
+            }
+        }
+
+    });
+}
+
+function requestAccess() {
+    const email = document.getElementById("email").value.trim();
+
+    if (email === "") {
+        alert("Please enter your email first.");
+        return;
+    }
+
+    fetch("/api/request-access", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ email: email })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            alert("✅ " + data.message);
+        } else {
+            alert("❌ " + data.error);
+        }
+    })
+    .catch(() => {
+        alert("❌ Failed to submit request.");
+    });
+}
 document.getElementById("registerForm").addEventListener("submit", function(e){
     e.preventDefault();
 

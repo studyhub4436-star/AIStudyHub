@@ -2,6 +2,30 @@
 // SHOW SECTIONS
 // ===============================
 function showSection(sectionId, element) {
+  // Close Trending Preview
+  const trendingContainer = document.getElementById("trendingPreviewContainer");
+  const trendingViewer = document.getElementById("trendingPdfViewer");
+
+  if (trendingContainer) trendingContainer.style.display = "none";
+  if (trendingViewer) trendingViewer.src = "";
+
+  // Close Recommendation Preview
+  const recommendationContainer = document.getElementById(
+    "recommendationPreviewContainer",
+  );
+  const recommendationViewer = document.getElementById(
+    "recommendationPdfViewer",
+  );
+
+  if (recommendationContainer) recommendationContainer.style.display = "none";
+  if (recommendationViewer) recommendationViewer.src = "";
+
+  // Close Search Preview
+  const searchContainer = document.getElementById("pdfPreviewContainer");
+  const searchViewer = document.getElementById("pdfViewer");
+
+  if (searchContainer) searchContainer.style.display = "none";
+  if (searchViewer) searchViewer.src = "";
   // Hide all sections
   let sections = document.querySelectorAll(".content");
   sections.forEach(function (section) {
@@ -282,15 +306,22 @@ function previewFile(docId) {
 // TRENDING PDF PREVIEW
 // ===============================
 function previewTrending(docId) {
-  let viewer = document.getElementById("trendingPdfViewer");
-  let container = document.getElementById("trendingPreviewContainer");
+  showSection("trending");
 
-  viewer.src = "/preview/" + docId;
+  const container = document.getElementById("trendingPreviewContainer");
+  const viewer = document.getElementById("trendingPdfViewer");
+
   container.style.display = "block";
 
-  container.scrollIntoView({ behavior: "smooth" });
-}
+  viewer.src = "/preview/" + docId;
 
+  setTimeout(() => {
+    container.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  }, 100);
+}
 // ===============================
 // RECOMMENDATION PDF PREVIEW
 // ===============================
@@ -303,3 +334,107 @@ function previewRecommendation(docId) {
 
   container.scrollIntoView({ behavior: "smooth" });
 }
+// ===============================
+// BACK TO DASHBOARD
+// ===============================
+function backToDashboard() {
+  // Close Trending Preview
+  const trendingContainer = document.getElementById("trendingPreviewContainer");
+  const trendingViewer = document.getElementById("trendingPdfViewer");
+
+  if (trendingContainer) {
+    trendingContainer.style.display = "none";
+  }
+
+  if (trendingViewer) {
+    trendingViewer.src = "";
+  }
+
+  // Close Recommendation Preview
+  const recommendationContainer = document.getElementById(
+    "recommendationPreviewContainer",
+  );
+  const recommendationViewer = document.getElementById(
+    "recommendationPdfViewer",
+  );
+
+  if (recommendationContainer) {
+    recommendationContainer.style.display = "none";
+  }
+
+  if (recommendationViewer) {
+    recommendationViewer.src = "";
+  }
+
+  // ✅ Proper section switch (IMPORTANT)
+  showSection("home");
+
+  // ✅ Fix sidebar active state properly
+  let menuItems = document.querySelectorAll(".sidebar ul li");
+  menuItems.forEach((item) => item.classList.remove("active"));
+
+  // Home menu active (first item)
+  if (menuItems.length > 0) {
+    menuItems[0].classList.add("active");
+  }
+}
+let barChart;
+let pieChart;
+
+function loadCharts() {
+  fetch("/dashboard-data")
+    .then((res) => res.json())
+    .then((data) => {
+      if (barChart) {
+        barChart.destroy();
+      }
+
+      if (pieChart) {
+        pieChart.destroy();
+      }
+
+      // BAR CHART
+
+      barChart = new Chart(document.getElementById("barChart"), {
+        type: "bar",
+        data: {
+          labels: ["Users", "PDFs", "Downloads", "Uploads"],
+          datasets: [
+            {
+              label: "AI Study Hub Statistics",
+              data: [data.users, data.pdfs, data.downloads, data.uploads],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+        },
+      });
+
+      // PIE CHART
+
+      pieChart = new Chart(document.getElementById("pieChart"), {
+        type: "pie",
+        data: {
+          labels: ["CSE", "CSE-AI", "CSE-DS", "ECE", "EEE", "IT"],
+          datasets: [
+            {
+              data: data.branch_data,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+        },
+      });
+    })
+    .catch((error) => {
+      console.error("Chart Error:", error);
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  loadCharts();
+});

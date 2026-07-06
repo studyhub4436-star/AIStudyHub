@@ -66,14 +66,14 @@ class AIStudyHubTestCase(unittest.TestCase):
     def test_otp_generation(self):
         """Test OTP generation and database storage."""
         response = self.client.post('/api/send-otp', 
-                                   data=json.dumps({'email': 'test@example.com'}),
+                                   data=json.dumps({'email': 'test@sasi.ac.in'}),
                                    content_type='application/json')
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertTrue(data['success'])
         
         # Check database
-        record = self.test_otps.find_one({'email': 'test@example.com'})
+        record = self.test_otps.find_one({'email': 'test@sasi.ac.in'})
         self.assertIsNotNone(record)
         self.assertEqual(len(record['otp']), 6)
 
@@ -81,15 +81,15 @@ class AIStudyHubTestCase(unittest.TestCase):
         """Test user registration flow and login verify."""
         # 1. Send OTP
         self.client.post('/api/send-otp', 
-                         data=json.dumps({'email': 'testuser@example.com'}),
+                         data=json.dumps({'email': 'testuser@sasi.ac.in'}),
                          content_type='application/json')
-        otp_record = self.test_otps.find_one({'email': 'testuser@example.com'})
+        otp_record = self.test_otps.find_one({'email': 'testuser@sasi.ac.in'})
         otp = otp_record['otp']
         
         # 2. Register User
         reg_payload = {
             'name': 'Test User',
-            'email': 'testuser@example.com',
+            'email': 'testuser@sasi.ac.in',
             'password': 'password123',
             'branch': 'CSE',
             'year': '3rd Year',
@@ -103,13 +103,13 @@ class AIStudyHubTestCase(unittest.TestCase):
         self.assertTrue(reg_data['success'])
         
         # Check user database record
-        user = self.test_users.find_one({'email': 'testuser@example.com'})
+        user = self.test_users.find_one({'email': 'testuser@sasi.ac.in'})
         self.assertIsNotNone(user)
         self.assertEqual(user['name'], 'Test User')
         
         # 3. Login
         login_payload = {
-            'email': 'testuser@example.com',
+            'email': 'testuser@sasi.ac.in',
             'password': 'password123',
             'role': 'user'
         }

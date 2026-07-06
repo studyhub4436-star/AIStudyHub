@@ -161,7 +161,9 @@ body::after{
    onclick="togglePDFs()">
     📄 View All PDFs
 </a>
-
+<a href="/admin/access-requests" class="action-btn">
+    📩 Access Requests
+</a>
     <a href="/logout" class="action-btn logout">
         🚪 Logout
     </a>
@@ -182,7 +184,9 @@ body::after{
         <p>📚 Subject : {{ pdf.subject }}</p>
 
         <p>👤 Uploaded By : {{ pdf.uploaded_by }}</p>
-
+<p>📅 Uploaded Date :
+{{ pdf.upload_date.strftime("%d-%m-%Y %I:%M %p") if pdf.upload_date else "N/A" }}
+</p>
         <br>
 
         <a class="action-btn"
@@ -217,17 +221,45 @@ body::after{
     {% endfor %}
 
 </div>
+<div id="userActions"
+     style="display:none; margin:20px 0; gap:10px; flex-wrap:wrap;">
+
+    <button class="action-btn" onclick="selectAllUsers()">
+        ✅ Select All
+    </button>
+
+    <button class="action-btn" onclick="unselectAllUsers()">
+        ❌ Unselect All
+    </button>
+
+    <button class="action-btn logout" onclick="deleteSelectedUsers()">
+        🗑 Delete Selected
+    </button>
+
+</div>
 <div id="userList" style="display:none; margin-top:40px;">
 
-    <h2 style="
-        text-align:center;
-        color:#00ffff;
+    <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
         margin-bottom:25px;
-        font-size:28px;
-        letter-spacing:1px;
     ">
-        👥 All Users
-    </h2>
+
+        <h2 style="
+            color:#00ffff;
+            font-size:28px;
+            letter-spacing:1px;
+            margin:0;
+        ">
+            👥 All Users
+        </h2>
+
+       <a href="/admin/users-data" class="action-btn">
+    📊 Users Data
+</a>
+
+    </div>
 
     <div style="
         display:grid;
@@ -244,7 +276,11 @@ body::after{
             border:1px solid rgba(0,255,255,0.15);
             backdrop-filter: blur(10px);
         ">
-
+<input
+    type="checkbox"
+    class="userCheckbox"
+    value="{{ user._id }}"
+    style="width:20px;height:20px;margin-bottom:12px;cursor:pointer;">
             <h3 style="color:#00ffff;">
                 👤 {{ user.name }}
             </h3>
@@ -262,18 +298,20 @@ body::after{
 </div>
 <script>
 function toggleUsers() {
+
     let users = document.getElementById("userList");
     let pdfs = document.getElementById("pdfList");
+    let actions = document.getElementById("userActions");
 
-    // close PDFs
     pdfs.style.display = "none";
 
-    // toggle users
     if (users.style.display === "block") {
         users.style.display = "none";
+        actions.style.display = "none";
     } else {
         users.style.display = "block";
-        users.scrollIntoView({ behavior: "smooth" });
+        actions.style.display = "flex";
+        users.scrollIntoView({behavior:"smooth"});
     }
 }
 
@@ -292,10 +330,83 @@ function togglePDFs() {
         pdfs.scrollIntoView({ behavior: "smooth" });
     }
 }
+function selectAllUsers() {
+    document.querySelectorAll(".userCheckbox").forEach(cb => {
+        cb.checked = true;
+    });
+}
+
+function unselectAllUsers() {
+    document.querySelectorAll(".userCheckbox").forEach(cb => {
+        cb.checked = false;
+    });
+}
+
+function deleteSelectedUsers() {
+
+    let ids = [];
+
+    document.querySelectorAll(".userCheckbox:checked").forEach(cb => {
+        ids.push(cb.value);
+    });
+
+    if(ids.length==0){
+        alert("Select users first.");
+        return;
+    }
+
+    if(!confirm("Delete selected users?")){
+        return;
+    }
+
+    fetch("/admin/delete-users",{
+        method:"POST",
+        headers:{
+            "Content-Type":"application/json"
+        },
+        body:JSON.stringify({
+            ids:ids
+        })
+    })
+    .then(res=>res.json())
+    .then(data=>{
+        alert(data.message);
+
+        if(data.success){
+            location.reload();
+        }
+    });
+}
+function toggleUsers() {
+    localStorage.setItem("activeSection", "users");
+
+    document.getElementById("pdfList").style.display = "none";
+    document.getElementById("userList").style.display = "block";
+    document.getElementById("userActions").style.display = "flex";
+}
+
+function togglePDFs() {
+    localStorage.setItem("activeSection", "pdfs");
+
+    document.getElementById("userList").style.display = "none";
+    document.getElementById("userActions").style.display = "none";
+    document.getElementById("pdfList").style.display = "block";
+}
+
+window.onload = function () {
+    const active = localStorage.getItem("activeSection");
+
+    if (active === "users") {
+        toggleUsers();
+    } else if (active === "pdfs") {
+        togglePDFs();
+    }
+};
 setInterval(function () {
     location.reload();
 }, 30000); //  30seconds
 </script>
+
 
 </body>
 </html>

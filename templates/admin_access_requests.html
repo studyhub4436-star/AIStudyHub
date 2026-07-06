@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Access Requests | AI Study Hub</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:'Poppins',sans-serif;
+}
+
+body{
+background:linear-gradient(135deg,#0f172a,#1e293b,#0f172a);
+min-height:100vh;
+padding:40px;
+color:white;
+}
+
+h1{
+text-align:center;
+color:#00ffff;
+margin-bottom:35px;
+}
+
+.container{
+max-width:1000px;
+margin:auto;
+}
+
+.card{
+background:rgba(255,255,255,.08);
+backdrop-filter:blur(18px);
+border:1px solid rgba(255,255,255,.1);
+padding:25px;
+border-radius:20px;
+margin-bottom:20px;
+}
+
+.email{
+font-size:18px;
+font-weight:600;
+color:#00ffff;
+}
+
+.status{
+margin-top:10px;
+font-weight:600;
+}
+
+.pending{color:orange;}
+.approved{color:#00ff99;}
+.rejected{color:#ff5b5b;}
+
+.buttons{
+margin-top:20px;
+display:flex;
+gap:15px;
+}
+
+.btn{
+padding:12px 22px;
+border:none;
+border-radius:12px;
+cursor:pointer;
+font-weight:600;
+text-decoration:none;
+}
+
+.approve{
+background:#00ffff;
+color:#000;
+}
+
+.reject{
+background:#ff4d4d;
+color:#fff;
+}
+
+.back{
+display:inline-block;
+margin-bottom:30px;
+color:#00ffff;
+text-decoration:none;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<a href="{{ url_for('admin_dashboard') }}" class="back">
+    ⬅ Back to Dashboard
+</a>
+
+<h1>📩 Access Requests</h1>
+
+{% if requests %}
+
+{% for req in requests %}
+
+<div class="card">
+
+<div class="email">
+{{ req.email }}
+</div>
+
+<p>
+Requested On :
+{{ req.requested_at.strftime('%d-%m-%Y %I:%M %p') if req.requested_at else "-" }}
+</p>
+
+<p class="status">
+
+Status :
+
+{% if req.status=="Pending" %}
+<span class="pending">Pending</span>
+
+{% elif req.status=="Approved" %}
+<span class="approved">Approved</span>
+
+{% else %}
+<span class="rejected">Rejected</span>
+
+{% endif %}
+
+</p>
+
+{% if req.status=="Pending" %}
+
+<div class="buttons">
+
+<a href="/admin/approve-request/{{ req._id }}"
+class="btn approve">
+✅ Approve
+</a>
+
+<a href="/admin/reject-request/{{ req._id }}"
+class="btn reject">
+❌ Reject
+</a>
+
+</div>
+
+{% endif %}
+
+</div>
+
+{% endfor %}
+
+{% else %}
+
+<h2 style="text-align:center;color:#cbd5e1;">
+No Access Requests Found
+</h2>
+
+{% endif %}
+
+</div>
+
+</body>
+</html>

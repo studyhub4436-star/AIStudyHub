@@ -777,4 +777,14 @@ box-shadow:0 0 15px rgba(0,255,255,.3);
 color:#cbd5e1;
 
 }
-
+.back-btn{
+    display:block;
+    margin:20px 0;
+    padding:12px 22px;
+    background:#00ffff;
+    color:#000;
+    border:none;
+    border-radius:10px;
+    cursor:pointer;
+    font-weight:600;
+}

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users Data</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Poppins,sans-serif;
+}
+
+body{
+background:#0f172a;
+padding:30px;
+color:white;
+}
+
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+}
+
+h1{
+color:#00ffff;
+}
+
+.buttons{
+display:flex;
+gap:15px;
+}
+
+.btn{
+padding:12px 22px;
+border:none;
+border-radius:10px;
+cursor:pointer;
+text-decoration:none;
+font-weight:600;
+}
+
+.export{
+background:#00ffff;
+color:black;
+}
+
+.close{
+background:#ef4444;
+color:white;
+}
+
+.search{
+width:350px;
+padding:12px;
+margin-bottom:20px;
+border-radius:8px;
+border:none;
+outline:none;
+}
+
+.table-container{
+overflow:auto;
+background:white;
+border-radius:10px;
+}
+
+table{
+width:100%;
+border-collapse:collapse;
+color:black;
+}
+
+th{
+background:#00bcd4;
+padding:14px;
+}
+
+td{
+padding:12px;
+text-align:center;
+border-bottom:1px solid #ddd;
+}
+
+tr:hover{
+background:#f5f5f5;
+}
+
+</style>
+
+</head>
+<body>
+
+<div class="topbar">
+
+<h1>👥 Users Data</h1>
+
+<div class="buttons">
+
+<a href="/admin/export-users" class="btn export">
+📥 Export to Excel
+</a>
+
+<button class="btn close" onclick="goBack()">
+❌ Close
+</button>
+
+</div>
+
+</div>
+
+<input
+type="text"
+id="search"
+class="search"
+placeholder="Search user..."
+onkeyup="searchTable()">
+
+<div class="table-container">
+
+<table id="usersTable">
+
+<thead>
+
+<tr>
+
+<th>S.No</th>
+<th>Name</th>
+<th>Email</th>
+<th>Branch</th>
+<th>Year</th>
+<th>Pdfs upload Count</th>
+<th>download count</th>
+<th>Registered Date</th>
+</tr>
+
+</thead>
+
+<tbody>
+
+{% for user in users %}
+
+<tr>
+
+<td>{{ loop.index }}</td>
+<td>{{ user.name }}</td>
+<td>{{ user.email }}</td>
+<td>{{ user.branch }}</td>
+<td>{{ user.year }}</td>
+<td>{{ user.uploads_count }}</td>
+<td>{{ user.downloads_count }}</td>
+</tr>
+<td>
+{% if user.registered_date %}
+    {{ user.registered_date.strftime("%d-%m-%Y %I:%M %p") }}
+{% else %}
+    -
+{% endif %}
+</td>
+
+{% endfor %}
+
+</tbody>
+
+</table>
+
+</div>
+
+<script>
+
+function searchTable(){
+
+let input=document.getElementById("search").value.toLowerCase();
+
+let rows=document.querySelectorAll("#usersTable tbody tr");
+
+rows.forEach(function(row){
+
+let text=row.innerText.toLowerCase();
+
+row.style.display=text.includes(input)?"":"none";
+
+});
+
+}
+
+function goBack(){
+
+if(window.opener){
+
+window.close();
+
+}else{
+
+window.location.href="/admin-dashboard";
+
+}
+
+}
+
+</script>
+
+</body>
+</html>

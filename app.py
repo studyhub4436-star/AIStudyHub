@@ -1,6 +1,12 @@
 import os
+import io
 import random
 import string
+import pandas as pd
+from flask import Flask, request, render_template, redirect, session, jsonify
+from flask import send_file
+from openpyxl import Workbook
+from flask import send_file
 from datetime import datetime, timezone, timedelta
 from datetime import datetime, timezone
 import sib_api_v3_sdk
@@ -70,6 +76,7 @@ users_col = db['users']
 docs_col = db['documents']
 downloads_col = db['downloads']
 otps_col = db['otps']
+approval_requests_col = db["approval_requests"]
 
 # Indexes
 users_col.create_index('email', unique=True)
@@ -237,6 +244,35 @@ def dashboard():
                            trending_files=trending_files,
                            recommended_files=recommended_files,
                            downloads_history=downloads_history)
+@app.route("/dashboard-data")
+def dashboard_data():
+
+    total_users = users_col.count_documents({})
+    total_pdfs = docs_col.count_documents({})
+    total_downloads = downloads_col.count_documents({})
+    total_uploads = docs_col.count_documents({})
+
+    cse = docs_col.count_documents({"branch": "CSE"})
+    cse_ai = docs_col.count_documents({"branch": "CSE-AI"})
+    cse_ds = docs_col.count_documents({"branch": "CSE-DS"})
+    ece = docs_col.count_documents({"branch": "ECE"})
+    eee = docs_col.count_documents({"branch": "EEE"})
+    it = docs_col.count_documents({"branch": "IT"})
+
+    return jsonify({
+        "users": total_users,
+        "pdfs": total_pdfs,
+        "downloads": total_downloads,
+        "uploads": total_uploads,
+        "branch_data": [
+            cse,
+            cse_ai,
+            cse_ds,
+            ece,
+            eee,
+            it
+        ]
+    })
 @app.route('/admin-dashboard')
 def admin_dashboard():
 
@@ -296,6 +332,128 @@ def admin_users():
         'admin_users.html',
         users=users
     )
+@app.route("/admin/delete-users", methods=["POST"])
+def delete_users():
+
+    if "user_id" not in session:
+        return jsonify({
+            "success": False,
+            "message": "Unauthorized"
+        }), 401
+
+    if session.get("role") != "admin":
+        return jsonify({
+            "success": False,
+            "message": "Access Denied"
+        }), 403
+
+    data = request.get_json()
+
+    ids = data.get("ids", [])
+
+    if not ids:
+        return jsonify({
+            "success": False,
+            "message": "No users selected."
+        })
+
+    try:
+
+        object_ids = [ObjectId(i) for i in ids]
+
+        # Delete download history of selected users
+        downloads_col.delete_many({
+            "user_id": {
+                "$in": ids
+            }
+        })
+
+        # Delete uploaded PDFs of selected users
+        docs = list(docs_col.find({
+            "uploader_id": {
+                "$in": ids
+            }
+        }))
+
+        for doc in docs:
+
+            filepath = os.path.join(
+                app.config["UPLOAD_FOLDER"],
+                doc["filename"]
+            )
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+        docs_col.delete_many({
+            "uploader_id": {
+                "$in": ids
+            }
+        })
+
+        # Delete users
+        users_col.delete_many({
+            "_id": {
+                "$in": object_ids
+            }
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "Selected users deleted successfully."
+        })
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": str(e)
+        }), 500
+    
+    # Optional: Don't allow admin account deletion
+    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "prasad.mokhamatla@sasi.ac.in")
+
+    admin = users_col.find_one({"email": ADMIN_EMAIL})
+
+    if admin:
+        admin_id = str(admin["_id"])
+        ids = [i for i in ids if i != admin_id]
+
+    # Delete selected users
+    users_col.delete_many({
+        "_id": {
+            "$in": [ObjectId(i) for i in ids]
+        }
+    })
+
+    return jsonify({
+        "success": True
+    })
+@app.route("/admin/users-data")
+def admin_users_data():
+
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    if session.get("role") != "admin":
+        return redirect(url_for("dashboard"))
+
+    users = list(users_col.find())
+
+    for user in users:
+        uid = str(user["_id"])
+
+        user["uploads_count"] = docs_col.count_documents({
+            "uploader_id": uid
+        })
+
+        user["downloads_count"] = downloads_col.count_documents({
+            "user_id": uid
+        })
+
+    return render_template(
+        "admin_users_data.html",
+        users=users
+    )
 @app.route('/admin/pdfs')
 def admin_pdfs():
 
@@ -316,7 +474,9 @@ def admin_pdfs():
             'title': pdf.get('title', ''),
             'subject': pdf.get('subject', ''),
             'uploaded_by': user['email'] if user else 'Unknown',
-            'hidden': pdf.get('hidden', False)
+            'hidden': pdf.get('hidden', False),
+    
+              "upload_date": pdf.get("upload_date")
         })
 
     return render_template('admin_pdfs.html', pdfs=pdfs)
@@ -614,10 +774,23 @@ def send_otp():
     
     if not email:
         return jsonify({'success': False, 'error': 'Email is required'}), 400
-        
+
+    email = email.strip().lower()
+
+    if not email.endswith("@sasi.ac.in"):
+        approval = approval_requests_col.find_one({
+            "email": email,
+            "status": "Approved"
+        })
+
+        if not approval:
+            return jsonify({
+                "success": False,
+                "error": "Please request access first."
+            }), 403
+
     # Generate 6-digit OTP
     otp = "".join(random.choices(string.digits, k=6))
-    
     try:
         # Store in Mongo OTPs collection. Note: created_at has TTL index, automatically handles expiration
         otps_col.delete_many({'email': email}) # Clear any previous active OTPs
@@ -626,7 +799,7 @@ def send_otp():
             'otp': otp,
             'created_at': datetime.now(timezone.utc)
         })
-            #Send Email
+        #Send Email
         sent = send_email_otp(email, otp)
         if sent:
             return jsonify({'success': True, 'message': 'OTP sent successfully to your email.'})
@@ -680,7 +853,18 @@ def api_register():
     
     if not all([name, email, password, branch, year, otp]):
         return jsonify({'success': False, 'error': 'All fields are required'}), 400
-        
+    email = email.strip().lower()
+    if not email.endswith("@sasi.ac.in"):
+        approval = approval_requests_col.find_one({
+            "email": email,
+            "status": "Approved"
+        })
+
+        if not approval:
+            return jsonify({
+                "success": False,
+                "error": "Please request access first."
+            }), 403
     # Check if user already exists
     if users_col.find_one({'email': email}):
         return jsonify({'success': False, 'error': 'Email is already registered'}), 400
@@ -701,7 +885,9 @@ def api_register():
             'email': email,
             'password_hash': pwd_hash,
             'branch': branch,
-            'year': year
+            'year': year,
+             'created_at': datetime.now(timezone.utc),
+            'registered_date':datetime.now(timezone.utc),
         }).inserted_id
         
         # Clean up verified OTP
@@ -724,6 +910,19 @@ def api_login():
             "success": False,
             "error": "Please enter Email, Password and select Login Type."
         }), 400
+    email = email.strip().lower()
+
+    if not email.endswith("@sasi.ac.in"):
+        approval = approval_requests_col.find_one({
+            "email": email,
+            "status": "Approved"
+        })
+
+        if not approval:
+            return jsonify({
+                "success": False,
+                "error": "Your email is not approved. Please submit an access request."
+            }), 403
 
     user = users_col.find_one({"email": email})
 
@@ -739,7 +938,7 @@ def api_login():
             "error": "Invalid Password."
         }), 401
 
-    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "studyhub4436@gmail.com")
+    ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "prasad.mokhamatla@sasi.ac.in")
 
     # -----------------------------
     # ADMIN LOGIN
@@ -824,6 +1023,99 @@ def reset_password():
         'success': True,
         'message': 'Password updated successfully'
     })
+@app.route("/api/request-access", methods=["POST"])
+def request_access():
+
+    data = request.get_json()
+    email = data.get("email", "").strip().lower()
+
+    if not email:
+        return jsonify({"success": False, "error": "Email is required."})
+
+    if email.endswith("@sasi.ac.in"):
+        return jsonify({
+            "success": False,
+            "error": "SASI email does not require approval."
+        })
+
+    existing = approval_requests_col.find_one({"email": email})
+
+    if existing:
+        return jsonify({
+            "success": False,
+            "error": f"Request already {existing['status']}."
+        })
+
+    approval_requests_col.insert_one({
+        "email": email,
+        "status": "Pending",
+        "requested_at": datetime.now(timezone.utc)
+    })
+
+    return jsonify({
+        "success": True,
+        "message": "Request submitted successfully."
+    })
+@app.route("/api/check-access", methods=["POST"])
+def check_access():
+
+    data = request.get_json() or {}
+    email = data.get("email", "").strip().lower()
+
+    if email.endswith("@sasi.ac.in"):
+        return jsonify({
+            "approved": True
+        })
+
+    approval = approval_requests_col.find_one({
+        "email": email,
+        "status": "Approved"
+    })
+
+    return jsonify({
+        "approved": approval is not None
+    })
+@app.route('/admin/access-requests')
+def admin_access_requests():
+
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    if session.get("role") != "admin":
+        return redirect(url_for("dashboard"))
+
+    requests = list(
+        approval_requests_col.find().sort("requested_at", -1)
+    )
+
+    return render_template(
+        "admin_access_requests.html",
+        requests=requests
+    )
+@app.route('/admin/approve-request/<request_id>')
+def approve_request(request_id):
+
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    approval_requests_col.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {"status": "Approved"}}
+    )
+
+    return redirect(url_for("admin_access_requests"))
+@app.route('/admin/reject-request/<request_id>')
+def reject_request(request_id):
+
+    if session.get("role") != "admin":
+        return redirect(url_for("login"))
+
+    approval_requests_col.update_one(
+        {"_id": ObjectId(request_id)},
+        {"$set": {"status": "Rejected"}}
+    )
+
+    return redirect(url_for("admin_access_requests"))
 @app.route('/logout')
 def logout_route():
     session.clear()
@@ -1013,6 +1305,39 @@ def api_search():
                 'downloads': doc.get('downloads_count', 0)
             })
         return jsonify(results)
+@app.route("/admin/export-users")
+def export_users():
+
+    users = list(users_col.find())
+
+    data = []
+    for user in users:
+        uid = str(user["_id"])
+        data.append({
+            "Name": user.get("name"),
+            "Email": user.get("email"),
+            "Branch": user.get("branch"),
+            "Year": user.get("year"),
+            "Uploads": docs_col.count_documents({"uploader_id": uid}),
+            "Downloads": downloads_col.count_documents({"user_id": uid}),
+            "Registered Date": user.get("created_at")
+        })
+
+    df = pd.DataFrame(data)
+
+    output = io.BytesIO()
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name="Users")
+
+    output.seek(0)
+
+    return send_file(
+        output,
+        download_name="users.xlsx",
+        as_attachment=True,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 @app.route('/api/download/<doc_id>')
 def api_download(doc_id):

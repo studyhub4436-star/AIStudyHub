@@ -2,3 +2,5 @@
 uploads/
 __pycache__/
 *.pyc
+users.xlsx
+*.xlsx

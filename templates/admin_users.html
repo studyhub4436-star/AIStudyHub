@@ -92,12 +92,17 @@ body{
         <h1>👥 All Users</h1>
         <p>Registered Users in AI Study Hub</p>
     </div>
+   
+
+
 
     <div class="users-grid">
 
         {% for user in users %}
         <div class="user-card">
-            <h3>{{ user.name }}</h3>
+
+    
+    <h3>👤 {{ user.name }}</h3>
 
             <p>📧 {{ user.email }}</p>
 
@@ -117,7 +122,6 @@ body{
         ⬅ Back to Dashboard
     </a>
 
-</div>
 
 </body>
 </html>
