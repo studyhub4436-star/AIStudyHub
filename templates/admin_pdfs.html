@@ -67,10 +67,11 @@
 </div>
     <br>
 
-    <a class="btn preview"
-       href="/admin/preview/{{ pdf._id }}">
-       👀 Preview
-    </a>
+    <button
+    class="btn preview"
+    onclick="previewPDF('{{ pdf._id }}')">
+    👀 Preview
+</button>
 
     <a class="btn delete"
        href="/admin/delete-pdf/{{ pdf._id }}"
@@ -94,7 +95,31 @@
 </div>
 
 {% endfor %}
+<div id="adminPreviewContainer"
+     style="display:none; margin-top:30px;">
 
+    <iframe
+        id="adminPdfViewer"
+        width="100%"
+        height="700"
+        style="border:none;border-radius:10px;">
+    </iframe>
 
+</div>
+<script>
+function previewPDF(id){
+
+    document.getElementById("adminPreviewContainer").style.display = "block";
+
+    document.getElementById("adminPdfViewer").src =
+        "/admin/preview/" + id;
+
+    document.getElementById("adminPreviewContainer").scrollIntoView({
+        behavior:"smooth",
+        block:"start"
+    });
+
+}
+</script>
 </body>
 </html>

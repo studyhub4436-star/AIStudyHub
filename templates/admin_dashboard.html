@@ -196,10 +196,11 @@ body::after{
 </p>
         <br>
 
-        <a class="action-btn"
-           href="/admin/preview/{{ pdf._id }}">
-            👀 Preview
-        </a>
+        <button
+    class="action-btn"
+    onclick="previewAdminPDF('{{ pdf._id }}')">
+    👀 Preview
+</button>
 
         <a class="action-btn"
            href="/admin/delete-pdf/{{ pdf._id }}"
@@ -226,7 +227,17 @@ body::after{
     </div>
 
     {% endfor %}
+<div id="adminPreviewContainer"
+     style="display:none; margin-top:30px;">
 
+    <iframe
+        id="adminPdfViewer"
+        width="100%"
+        height="700"
+        style="border:none;border-radius:12px;">
+    </iframe>
+
+</div>
 </div>
 <div id="userActions"
      style="display:none; margin:20px 0; gap:10px; flex-wrap:wrap;">
@@ -428,7 +439,18 @@ function togglePDFs(){
     }
 
 }
+function previewAdminPDF(id){
 
+    document.getElementById("adminPreviewContainer").style.display = "block";
+
+    document.getElementById("adminPdfViewer").src =
+        "/admin/preview/" + id;
+
+    document.getElementById("adminPreviewContainer").scrollIntoView({
+        behavior:"smooth"
+    });
+
+}
 setInterval(function () {
     location.reload();
 }, 30000); //  30seconds

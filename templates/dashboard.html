@@ -279,14 +279,16 @@
                
                 <p style="color: #cbd5e1; padding: 20px 0;">Start typing or select filters to search documents...</p>
             </div>
+            <div id="pdfPreviewContainer"
+     style="display:none; margin-top:20px;">
 
-<div id="pdfPreviewContainer" style="margin-top:20px;">
     <iframe
         id="pdfViewer"
         width="100%"
-        height="600"
-        style="display:none;border:1px solid #ccc;border-radius:10px;">
+        height="700"
+        style="border:none; border-radius:12px;">
     </iframe>
+
 </div>
 
         </section>
@@ -370,72 +372,92 @@
         <!-- TRENDING -->
 
         <section id="trending" class="content">
-            <button class="back-btn" onclick="backToDashboard()">
-    ⬅ Back to Dashboard
-</button>
 
 <h1>🔥 Trending PDFs</h1>
-            <div class="cards">
-                {% for file in trending_files %}
-                <div class="card">
 
-                    <h3>{{ file.title }}</h3>
+<div class="cards">
 
-                    <p>{{ file.downloads }} Downloads</p>
+{% for file in trending_files %}
 
-                <button onclick="downloadFile('{{ file.id }}')">Download</button>
+<div class="card">
+
+<h3>{{ file.title }}</h3>
+
+<p>{{ file.downloads }} Downloads</p>
+
+<button onclick="downloadFile('{{ file.id }}')">Download</button>
+
 <button onclick="previewTrending('{{ file.id }}')">Preview</button>
-                </div>
-                {% else %}
-                <div class="card" style="width: 100%; grid-column: 1/-1;">
-                    <p style="color: #cbd5e1;">No files uploaded yet.</p>
-                </div>
-                {% endfor %}
-            </div>
-            <div id="trendingPreviewContainer" style="display:none; margin-top:20px;">
-    <iframe
-        id="trendingPdfViewer"
-        width="100%"
-        height="600"
-        style="border:1px solid #ccc;border-radius:10px;">
-    </iframe>
+
 </div>
 
-        </section>
+{% endfor %}
+
+</div>
+
+<!-- 👇 FOR LOOP AYIPOINA TARVATHA -->
+<div id="trendingPreviewContainer"
+     style="display:none; margin-top:20px;">
+
+<iframe
+id="trendingPdfViewer"
+width="100%"
+height="700"
+style="border:none;border-radius:12px;">
+</iframe>
+
+</div>
+
+</section>
         <!-- RECOMMENDATIONS -->
+         
         <section id="recommendations" class="content">
-            <button class="back-btn" onclick="backToDashboard()">
-    ⬅ Back to Dashboard
-</button>
+
 <h1>🤖 Recommended For You</h1>
-            <div class="cards">
-                {% for file in recommended_files %}
-                <div class="card">
 
-                    <h3>{{ file.title }}</h3>
+<div class="cards">
 
-                    <p>Similarity : {{ file.similarity }}%</p>
+{% for file in recommended_files %}
 
-                    <button onclick="downloadFile('{{ file.id }}')">Download</button>
-                   <button onclick="previewRecommendation('{{ file.id }}')">Preview</button>
-                </div>
-                {% else %}
-                <div class="card" style="width: 100%; grid-column: 1/-1;">
-                    <p style="color: #cbd5e1;">No recommendations available yet. Try downloading files first!</p>
-                </div>
-                {% endfor %}
-            </div>
-            <div id="recommendationPreviewContainer" style="display:none; margin-top:20px;">
+<div class="card">
+
+    <h3>{{ file.title }}</h3>
+
+    <p>Similarity : {{ file.similarity }}%</p>
+
+    <button onclick="downloadFile('{{ file.id }}')">
+        Download
+    </button>
+
+    <button onclick="previewRecommendation('{{ file.id }}')">
+        Preview
+    </button>
+
+</div>
+
+{% else %}
+
+<div class="card">
+    <p>No recommendations available.</p>
+</div>
+
+{% endfor %}
+
+</div>
+
+<div id="recommendationPreviewContainer"
+     style="display:none;margin-top:20px;">
+
     <iframe
         id="recommendationPdfViewer"
         width="100%"
-        height="600"
-        style="border:1px solid #ccc;border-radius:10px;">
+        height="700"
+        style="border:none;border-radius:12px;">
     </iframe>
+
 </div>
 
-        </section>
-
+</section>
         <!-- DOWNLOADS -->
 
         <section id="downloads" class="content">

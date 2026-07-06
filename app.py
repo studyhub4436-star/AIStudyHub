@@ -529,6 +529,23 @@ def admin_preview(doc_id):
 
     if not doc:
         return "File Not Found", 404
+
+    ext = doc['filename'].rsplit('.', 1)[1].lower() if '.' in doc['filename'] else ''
+
+    if ext == "pdf":
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            doc['filename'],
+            as_attachment=False,
+            mimetype='application/pdf'
+        )
+    elif ext in ["doc", "docx"]:
+        return send_from_directory(
+            app.config['UPLOAD_FOLDER'],
+            doc['filename'],
+            as_attachment=False
+        )
+
     return send_from_directory(
         app.config['UPLOAD_FOLDER'],
         doc['filename']

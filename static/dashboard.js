@@ -290,49 +290,42 @@ function downloadFile(docId) {
 // ===============================
 // PDF PREVIEW - SEARCH
 // ===============================
+// ===============================
+// PDF PREVIEW - SEARCH
+// ===============================
 function previewFile(docId) {
-  showSection("search");
 
-  let viewer = document.getElementById("pdfViewer");
-  let container = document.getElementById("pdfPreviewContainer");
+    document.getElementById("pdfPreviewContainer").style.display = "block";
 
-  viewer.src = "/preview/" + docId;
-  viewer.style.display = "block";
-  container.style.display = "block";
+    document.getElementById("pdfViewer").src = "/preview/" + docId;
 
-  container.scrollIntoView({ behavior: "smooth" });
+    document.getElementById("pdfPreviewContainer").scrollIntoView({
+        behavior: "smooth",
+        block: "start"
+    });
+
 }
 // ===============================
 // TRENDING PDF PREVIEW
 // ===============================
 function previewTrending(docId) {
-  showSection("trending");
+  document.getElementById("trendingPreviewContainer").style.display = "block";
 
-  const container = document.getElementById("trendingPreviewContainer");
-  const viewer = document.getElementById("trendingPdfViewer");
-
-  container.style.display = "block";
-
-  viewer.src = "/preview/" + docId;
-
-  setTimeout(() => {
-    container.scrollIntoView({
-      behavior: "smooth",
-      block: "start",
-    });
-  }, 100);
+  document.getElementById("trendingPdfViewer").src = "/preview/" + docId;
 }
 // ===============================
 // RECOMMENDATION PDF PREVIEW
 // ===============================
 function previewRecommendation(docId) {
-  let viewer = document.getElementById("recommendationPdfViewer");
-  let container = document.getElementById("recommendationPreviewContainer");
+  document.getElementById("recommendationPreviewContainer").style.display =
+    "block";
 
-  viewer.src = "/preview/" + docId;
-  container.style.display = "block";
+  document.getElementById("recommendationPdfViewer").src = "/preview/" + docId;
 
-  container.scrollIntoView({ behavior: "smooth" });
+  document.getElementById("recommendationPreviewContainer").scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 // ===============================
 // BACK TO DASHBOARD
