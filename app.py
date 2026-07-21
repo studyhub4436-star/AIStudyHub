@@ -1,5 +1,6 @@
 import os
 import re
+import hashlib
 import fitz 
 import google.generativeai as genai
 import io
@@ -80,44 +81,7 @@ downloads_col = db['downloads']
 otps_col = db['otps']
 approval_requests_col = db["approval_requests"]
 
-# Recalculate AI recommended badges for all existing documents
-def init_ai_recommendations():
-    try:
-        subjects = docs_col.distinct('subject')
-        processed_subjects = set()
-        for subj in subjects:
-            if not subj:
-                continue
-            subj_normalized = subj.strip().lower()
-            if subj_normalized in processed_subjects:
-                continue
-            processed_subjects.add(subj_normalized)
 
-            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subj.strip())}$", "$options": "i"}}))
-            if not same_subject_docs:
-                continue
-            best_score = -1
-            best_doc_id = None
-            for pdf in same_subject_docs:
-                score = pdf.get("ai_analysis", {}).get("score", 0)
-                if score > best_score:
-                    best_score = score
-                    best_doc_id = pdf["_id"]
-            
-            docs_col.update_many(
-                {"subject": {"$regex": f"^{re.escape(subj.strip())}$", "$options": "i"}},
-                {"$set": {"is_ai_recommended": False}}
-            )
-            if best_doc_id:
-                docs_col.update_one(
-                    {"_id": best_doc_id},
-                    {"$set": {"is_ai_recommended": True}}
-                )
-        print("[DATABASE] Initialized AI recommendation badges successfully.")
-    except Exception as e:
-        print(f"[DATABASE WARNING] Failed to initialize AI recommendation badges: {e}")
-
-init_ai_recommendations()
 # ---------------- Gemini AI ----------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
@@ -141,6 +105,85 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 # Maximum file size = 50 MB
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+
+def recalculate_all_recommendations():
+    try:
+        all_docs = list(docs_col.find({}))
+        if not all_docs:
+            return
+
+        # 1. Group by subject (case-insensitive) to find the max score for each subject
+        subject_max_scores = {}
+        for doc in all_docs:
+            subj = doc.get("subject", "").strip().lower()
+            if not subj:
+                continue
+            score = doc.get("ai_analysis", {}).get("score", 0)
+            if subj not in subject_max_scores or score > subject_max_scores[subj]:
+                subject_max_scores[subj] = score
+
+        # 2. Find the single best document (highest score, tie-broken by oldest _id) for each text_hash
+        hash_best_doc_ids = {}
+        hash_groups = {}
+        for doc in all_docs:
+            h = doc.get("text_hash")
+            if not h:
+                continue
+            if h not in hash_groups:
+                hash_groups[h] = []
+            hash_groups[h].append(doc)
+
+        for h, group in hash_groups.items():
+            # Sort group by score descending, then by _id ascending (older first)
+            group.sort(key=lambda d: (-d.get("ai_analysis", {}).get("score", 0), d["_id"]))
+            hash_best_doc_ids[h] = group[0]["_id"]
+
+        # 3. Evaluate and update each document
+        for doc in all_docs:
+            subj = doc.get("subject", "").strip().lower()
+            h = doc.get("text_hash")
+            score = doc.get("ai_analysis", {}).get("score", 0)
+
+            is_best_in_subject = (subj and score == subject_max_scores.get(subj, 0))
+            is_best_in_hash = (not h or doc["_id"] == hash_best_doc_ids.get(h))
+
+            is_rec = bool(is_best_in_subject and is_best_in_hash)
+
+            docs_col.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"is_ai_recommended": is_rec}}
+            )
+        print("[DATABASE] Recalculated all recommendation badges successfully.")
+    except Exception as e:
+        print(f"[DATABASE WARNING] Failed to recalculate recommendation badges: {e}")
+
+# Recalculate AI recommended badges for all existing documents
+def init_ai_recommendations():
+    try:
+        all_docs = list(docs_col.find({}))
+        for doc in all_docs:
+            if not doc.get('text_hash'):
+                filepath = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
+                if os.path.exists(filepath):
+                    try:
+                        fitz_doc = fitz.open(filepath)
+                        text = ""
+                        for page in fitz_doc:
+                            text += page.get_text()
+                        fitz_doc.close()
+                        normalized = "".join(text.split()).lower()
+                        text_hash = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+                        docs_col.update_one({'_id': doc['_id']}, {'$set': {'text_hash': text_hash}})
+                    except Exception as e:
+                        print(f"Error hashing existing doc {doc.get('title')}: {e}")
+
+        # Run consolidated recalculation
+        recalculate_all_recommendations()
+        print("[DATABASE] Initialized AI recommendation badges successfully.")
+    except Exception as e:
+        print(f"[DATABASE WARNING] Failed to initialize AI recommendation badges: {e}")
+
+init_ai_recommendations()
 
 # Only PDF allowed
 ALLOWED_EXTENSIONS = {'pdf', 'doc', "docx"}
@@ -727,27 +770,8 @@ def admin_delete_pdf(doc_id):
             'document_id': doc_id
         })
 
-        # Recalculate best PDF for this subject
-        if subject:
-            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
-            if same_subject_docs:
-                best_score = -1
-                best_doc_id = None
-                for pdf in same_subject_docs:
-                    score = pdf.get("ai_analysis", {}).get("score", 0)
-                    if score > best_score:
-                        best_score = score
-                        best_doc_id = pdf["_id"]
-                
-                docs_col.update_many(
-                    {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
-                    {"$set": {"is_ai_recommended": False}}
-                )
-                if best_doc_id:
-                    docs_col.update_one(
-                        {"_id": best_doc_id},
-                        {"$set": {"is_ai_recommended": True}}
-                    )
+        # Recalculate best PDF badges across database
+        recalculate_all_recommendations()
 
     return redirect(url_for('admin_dashboard'))
 @app.route('/admin/hide-pdf/<doc_id>')
@@ -941,27 +965,8 @@ def delete_upload(doc_id):
             "_id": ObjectId(doc_id)
         })
 
-        # Recalculate best PDF for this subject
-        if subject:
-            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
-            if same_subject_docs:
-                best_score = -1
-                best_doc_id = None
-                for pdf in same_subject_docs:
-                    score = pdf.get("ai_analysis", {}).get("score", 0)
-                    if score > best_score:
-                        best_score = score
-                        best_doc_id = pdf["_id"]
-                
-                docs_col.update_many(
-                    {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
-                    {"$set": {"is_ai_recommended": False}}
-                )
-                if best_doc_id:
-                    docs_col.update_one(
-                        {"_id": best_doc_id},
-                        {"$set": {"is_ai_recommended": True}}
-                    )
+        # Recalculate best PDF badges across database
+        recalculate_all_recommendations()
 
         return jsonify({
             "success": True,
@@ -1439,6 +1444,19 @@ def api_upload():
     try:
         file.save(filepath)
 
+        # Hashing PDF content
+        text_hash = ""
+        try:
+            fitz_doc = fitz.open(filepath)
+            extracted_text = ""
+            for page in fitz_doc:
+                extracted_text += page.get_text()
+            fitz_doc.close()
+            normalized_text = "".join(extracted_text.split()).lower()
+            text_hash = hashlib.sha256(normalized_text.encode('utf-8')).hexdigest()
+        except Exception as hash_err:
+            print("Error generating upload hash:", hash_err)
+
         # AI Analysis
         ai_analysis = analyze_pdf_with_ai(filepath, subject)
 
@@ -1457,36 +1475,14 @@ def api_upload():
             'downloads_count': 0,
             'ai_analysis': ai_analysis,
             'is_ai_recommended': False,
+            'text_hash': text_hash,
             'hidden': False,
             'uploader_id': session['user_id'],
             'upload_date': datetime.now(timezone(timedelta(hours=5, minutes=30)))
         })
 
-        # -------- AI Recommendation Update --------
-        same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
-
-        best_score = -1
-        best_doc_id = None
-
-        for pdf in same_subject_docs:
-            score = pdf.get("ai_analysis", {}).get("score", 0)
-
-            if score > best_score:
-                best_score = score
-                best_doc_id = pdf["_id"]
-
-        # Remove badge from all PDFs of this subject
-        docs_col.update_many(
-            {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
-            {"$set": {"is_ai_recommended": False}}
-        )
-
-        # Give badge to highest scored PDF
-        if best_doc_id:
-            docs_col.update_one(
-                {"_id": best_doc_id},
-                {"$set": {"is_ai_recommended": True}}
-            )
+        # Recalculate best PDF badges across database
+        recalculate_all_recommendations()
 
         # Success Message
         file_ext = file.filename.rsplit('.', 1)[1].lower()
