@@ -1,4 +1,5 @@
 import os
+import re
 import fitz 
 import google.generativeai as genai
 import io
@@ -83,10 +84,16 @@ approval_requests_col = db["approval_requests"]
 def init_ai_recommendations():
     try:
         subjects = docs_col.distinct('subject')
+        processed_subjects = set()
         for subj in subjects:
             if not subj:
                 continue
-            same_subject_docs = list(docs_col.find({"subject": subj}))
+            subj_normalized = subj.strip().lower()
+            if subj_normalized in processed_subjects:
+                continue
+            processed_subjects.add(subj_normalized)
+
+            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subj.strip())}$", "$options": "i"}}))
             if not same_subject_docs:
                 continue
             best_score = -1
@@ -98,7 +105,7 @@ def init_ai_recommendations():
                     best_doc_id = pdf["_id"]
             
             docs_col.update_many(
-                {"subject": subj},
+                {"subject": {"$regex": f"^{re.escape(subj.strip())}$", "$options": "i"}},
                 {"$set": {"is_ai_recommended": False}}
             )
             if best_doc_id:
@@ -722,7 +729,7 @@ def admin_delete_pdf(doc_id):
 
         # Recalculate best PDF for this subject
         if subject:
-            same_subject_docs = list(docs_col.find({"subject": subject}))
+            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
             if same_subject_docs:
                 best_score = -1
                 best_doc_id = None
@@ -733,7 +740,7 @@ def admin_delete_pdf(doc_id):
                         best_doc_id = pdf["_id"]
                 
                 docs_col.update_many(
-                    {"subject": subject},
+                    {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
                     {"$set": {"is_ai_recommended": False}}
                 )
                 if best_doc_id:
@@ -936,7 +943,7 @@ def delete_upload(doc_id):
 
         # Recalculate best PDF for this subject
         if subject:
-            same_subject_docs = list(docs_col.find({"subject": subject}))
+            same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
             if same_subject_docs:
                 best_score = -1
                 best_doc_id = None
@@ -947,7 +954,7 @@ def delete_upload(doc_id):
                         best_doc_id = pdf["_id"]
                 
                 docs_col.update_many(
-                    {"subject": subject},
+                    {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
                     {"$set": {"is_ai_recommended": False}}
                 )
                 if best_doc_id:
@@ -1456,7 +1463,7 @@ def api_upload():
         })
 
         # -------- AI Recommendation Update --------
-        same_subject_docs = list(docs_col.find({"subject": subject}))
+        same_subject_docs = list(docs_col.find({"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}}))
 
         best_score = -1
         best_doc_id = None
@@ -1470,7 +1477,7 @@ def api_upload():
 
         # Remove badge from all PDFs of this subject
         docs_col.update_many(
-            {"subject": subject},
+            {"subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"}},
             {"$set": {"is_ai_recommended": False}}
         )
 
