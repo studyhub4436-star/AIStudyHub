@@ -2,6 +2,20 @@
 <html>
 <head>
     <title>All PDFs</title>
+    <style>
+      .ai-badge {
+        display: inline-block;
+        margin-left: 8px;
+        padding: 4px 10px;
+        background: linear-gradient(90deg, #FFD700, #FFC107);
+        color: #000;
+        font-size: 11px;
+        font-weight: 700;
+        border-radius: 20px;
+        box-shadow: 0 0 10px rgba(255, 215, 0, .4);
+        font-family: Arial, sans-serif;
+      }
+    </style>
 </head>
 <body>
 
@@ -11,7 +25,12 @@
 
 <div style="border:1px solid #ccc;padding:15px;margin:10px;">
 
-    <h3>{{ doc.title }}</h3>
+    <h3>
+        {{ doc.title }}
+        {% if doc.is_ai_recommended %}
+            <span class="ai-badge">⭐ Best PDF</span>
+        {% endif %}
+    </h3>
 
     <p>{{ doc.subject }}</p>
 

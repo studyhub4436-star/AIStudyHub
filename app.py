@@ -1,4 +1,6 @@
 import os
+import fitz 
+import google.generativeai as genai
 import io
 import random
 import string
@@ -26,7 +28,6 @@ def is_locked(pdf):
     lock_time = pdf.get("locked_until")
     if not lock_time:
         return False
-
     if lock_time.tzinfo is None:
         lock_time = lock_time.replace(tzinfo=timezone.utc)
 
@@ -78,6 +79,50 @@ downloads_col = db['downloads']
 otps_col = db['otps']
 approval_requests_col = db["approval_requests"]
 
+# Recalculate AI recommended badges for all existing documents
+def init_ai_recommendations():
+    try:
+        subjects = docs_col.distinct('subject')
+        for subj in subjects:
+            if not subj:
+                continue
+            same_subject_docs = list(docs_col.find({"subject": subj}))
+            if not same_subject_docs:
+                continue
+            best_score = -1
+            best_doc_id = None
+            for pdf in same_subject_docs:
+                score = pdf.get("ai_analysis", {}).get("score", 0)
+                if score > best_score:
+                    best_score = score
+                    best_doc_id = pdf["_id"]
+            
+            docs_col.update_many(
+                {"subject": subj},
+                {"$set": {"is_ai_recommended": False}}
+            )
+            if best_doc_id:
+                docs_col.update_one(
+                    {"_id": best_doc_id},
+                    {"$set": {"is_ai_recommended": True}}
+                )
+        print("[DATABASE] Initialized AI recommendation badges successfully.")
+    except Exception as e:
+        print(f"[DATABASE WARNING] Failed to initialize AI recommendation badges: {e}")
+
+init_ai_recommendations()
+# ---------------- Gemini AI ----------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    model = genai.GenerativeModel("gemini-2.5-flash")
+    print("[AI] Gemini initialized successfully.")
+else:
+    model = None
+    print("[AI] GEMINI_API_KEY not found.")
+# ------------------------------------------
+
 # Indexes
 users_col.create_index('email', unique=True)
 # OTP TTL index: Expire OTP documents 300 seconds (5 minutes) after the 'created_at' field
@@ -98,6 +143,91 @@ def allowed_file(filename):
         '.' in filename and
         filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
     )
+
+import json
+
+def analyze_pdf_with_ai(filepath, subject):
+    if model is None:
+        return {
+            "score": 0,
+            "coverage": 0,
+            "readability": 0,
+            "structure": 0,
+            "examples": 0,
+            "diagrams": 0,
+            "practical_usefulness": 0,
+            "reason": "Gemini API not configured"
+        }
+
+    try:
+        # Read PDF
+        doc = fitz.open(filepath)
+        text = ""
+
+        for page in doc:
+            text += page.get_text()
+
+        doc.close()
+
+        # Very large PDFs ni limit cheyyadam
+        text = text[:25000]
+
+        prompt = f"""
+You are an experienced university professor.
+
+Analyze this {subject} study material.
+
+Evaluate:
+- Syllabus Coverage
+- Explanation Quality
+- Readability
+- Structure
+- Examples
+- Diagrams
+- Practical Usefulness
+
+Return ONLY JSON in this format:
+
+{{
+"score":90,
+"coverage":95,
+"readability":90,
+"structure":92,
+"examples":88,
+"diagrams":80,
+"practical_usefulness":91,
+"reason":"Explain briefly"
+}}
+
+Study Material:
+
+{text}
+"""
+
+        response = model.generate_content(prompt)
+
+        result = response.text.strip()
+
+        # Gemini sometimes returns ```json ... ```
+        result = result.replace("```json", "")
+        result = result.replace("```", "")
+        result = result.strip()
+
+        return json.loads(result)
+
+    except Exception as e:
+        print("AI ERROR:", e)
+
+        return {
+            "score": 0,
+            "coverage": 0,
+            "readability": 0,
+            "structure": 0,
+            "examples": 0,
+            "diagrams": 0,
+            "practical_usefulness": 0,
+            "reason": str(e)
+        }
 # ==========================================
 # SMTP Email Helper
 # ==========================================
@@ -213,23 +343,31 @@ def dashboard():
             })
             
     # Fetch trending PDFs (top downloads)
-    trending_cursor = docs_col.find({'downloads_count': {'$gt': 0}}).sort('downloads_count', -1).limit(4)
+    # Fetch trending PDFs (top downloads)
+    trending_cursor = docs_col.find(
+        {'downloads_count': {'$gt': 0}}
+    ).sort('downloads_count', -1).limit(4)
+
     trending_files = []
+
     for doc in trending_cursor:
         trending_files.append({
             'id': str(doc['_id']),
             'title': doc['title'],
-            'downloads': doc['downloads_count']
+            'downloads': doc['downloads_count'],
+            'is_ai_recommended': doc.get('is_ai_recommended', False)
         })
-        
+
     # If no trending files, get latest uploads
     if not trending_files:
         latest_cursor = docs_col.find().sort('upload_date', -1).limit(4)
+
         for doc in latest_cursor:
             trending_files.append({
                 'id': str(doc['_id']),
                 'title': doc['title'],
-                'downloads': doc['downloads_count']
+                'downloads': doc['downloads_count'],
+                'is_ai_recommended': doc.get('is_ai_recommended', False)
             })
 
     # Fetch Recommendations (AI Recommended)
@@ -382,7 +520,8 @@ def admin_dashboard():
             "subject": pdf.get("subject", ""),
             "uploaded_by": user["email"] if user else "Unknown",
             "hidden": pdf.get("hidden", False),
-            "upload_date": upload_date
+            "upload_date": upload_date,
+            "is_ai_recommended": pdf.get("is_ai_recommended", False)
         })
 
     # Users
@@ -515,12 +654,12 @@ def admin_pdfs():
             'uploaded_by': user['email'] if user else 'Unknown',
             'hidden': pdf.get('hidden', False),
             "upload_date": pdf.get("upload_date"),
+            "is_ai_recommended": pdf.get("is_ai_recommended", False),
         })
 
     return render_template('admin_pdfs.html', pdfs=pdfs)
 @app.route('/admin/preview/<doc_id>')
 def admin_preview(doc_id):
-
     if 'user_id' not in session:
         return redirect(url_for('login'))
     if session.get("role") != "admin":
@@ -563,6 +702,7 @@ def admin_delete_pdf(doc_id):
     })
 
     if doc:
+        subject = doc.get("subject")
 
         filepath = os.path.join(
             app.config['UPLOAD_FOLDER'],
@@ -579,6 +719,28 @@ def admin_delete_pdf(doc_id):
         downloads_col.delete_many({
             'document_id': doc_id
         })
+
+        # Recalculate best PDF for this subject
+        if subject:
+            same_subject_docs = list(docs_col.find({"subject": subject}))
+            if same_subject_docs:
+                best_score = -1
+                best_doc_id = None
+                for pdf in same_subject_docs:
+                    score = pdf.get("ai_analysis", {}).get("score", 0)
+                    if score > best_score:
+                        best_score = score
+                        best_doc_id = pdf["_id"]
+                
+                docs_col.update_many(
+                    {"subject": subject},
+                    {"$set": {"is_ai_recommended": False}}
+                )
+                if best_doc_id:
+                    docs_col.update_one(
+                        {"_id": best_doc_id},
+                        {"$set": {"is_ai_recommended": True}}
+                    )
 
     return redirect(url_for('admin_dashboard'))
 @app.route('/admin/hide-pdf/<doc_id>')
@@ -680,7 +842,8 @@ def get_recommendations(user):
                     recommendations.append({
                         'id': str(doc['_id']),
                         'title': doc['title'],
-                        'similarity': final_percentage
+                        'similarity': final_percentage,
+                        'is_ai_recommended': doc.get('is_ai_recommended', False)
                     })
         except Exception as e:
             print(f"[RECS ERROR] Failed TF-IDF recommendation fallback to rule-based: {e}")
@@ -703,7 +866,8 @@ def get_recommendations(user):
             recommendations.append({
                 'id': str(doc['_id']),
                 'title': doc['title'],
-                'similarity': final_percentage
+                'similarity': final_percentage,
+                'is_ai_recommended': doc.get('is_ai_recommended', False)
             })
             
     # Sort recommendations by similarity descending, limit to 4
@@ -749,6 +913,8 @@ def delete_upload(doc_id):
                 "message": "File not found"
             })
 
+        subject = doc.get("subject")
+
         # Delete PDF file
         filepath = os.path.join(
             app.config['UPLOAD_FOLDER'],
@@ -767,6 +933,28 @@ def delete_upload(doc_id):
         docs_col.delete_one({
             "_id": ObjectId(doc_id)
         })
+
+        # Recalculate best PDF for this subject
+        if subject:
+            same_subject_docs = list(docs_col.find({"subject": subject}))
+            if same_subject_docs:
+                best_score = -1
+                best_doc_id = None
+                for pdf in same_subject_docs:
+                    score = pdf.get("ai_analysis", {}).get("score", 0)
+                    if score > best_score:
+                        best_score = score
+                        best_doc_id = pdf["_id"]
+                
+                docs_col.update_many(
+                    {"subject": subject},
+                    {"$set": {"is_ai_recommended": False}}
+                )
+                if best_doc_id:
+                    docs_col.update_one(
+                        {"_id": best_doc_id},
+                        {"$set": {"is_ai_recommended": True}}
+                    )
 
         return jsonify({
             "success": True,
@@ -1243,8 +1431,13 @@ def api_upload():
     
     try:
         file.save(filepath)
+
+        # AI Analysis
+        ai_analysis = analyze_pdf_with_ai(filepath, subject)
+
         pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
-        # Save document metadata in MongoDB
+        print("AI Analysis:", ai_analysis)
+
         docs_col.insert_one({
             'title': title,
             'pdf_id': pdf_id,
@@ -1253,15 +1446,42 @@ def api_upload():
             'year': year,
             'subject': subject,
             'filename': filename,
- 'original_name': file.filename, 
-
+            'original_name': file.filename,
             'downloads_count': 0,
-            'hidden':False,
+            'ai_analysis': ai_analysis,
+            'is_ai_recommended': False,
+            'hidden': False,
             'uploader_id': session['user_id'],
             'upload_date': datetime.now(timezone(timedelta(hours=5, minutes=30)))
         })
-        
-        # Get uploaded file extension
+
+        # -------- AI Recommendation Update --------
+        same_subject_docs = list(docs_col.find({"subject": subject}))
+
+        best_score = -1
+        best_doc_id = None
+
+        for pdf in same_subject_docs:
+            score = pdf.get("ai_analysis", {}).get("score", 0)
+
+            if score > best_score:
+                best_score = score
+                best_doc_id = pdf["_id"]
+
+        # Remove badge from all PDFs of this subject
+        docs_col.update_many(
+            {"subject": subject},
+            {"$set": {"is_ai_recommended": False}}
+        )
+
+        # Give badge to highest scored PDF
+        if best_doc_id:
+            docs_col.update_one(
+                {"_id": best_doc_id},
+                {"$set": {"is_ai_recommended": True}}
+            )
+
+        # Success Message
         file_ext = file.filename.rsplit('.', 1)[1].lower()
 
         if file_ext == "pdf":
@@ -1270,14 +1490,16 @@ def api_upload():
             message = "Document uploaded successfully."
 
         return jsonify({
-            'success': True,
-            'message': message
+            "success": True,
+            "message": message
         })
+
     except Exception as e:
         return jsonify({
-        'success': False,
-        'error': f'File upload failed: {str(e)}'
-    }), 500
+            "success": False,
+            "error": f"File upload failed: {str(e)}"
+        }), 500
+
     
 
 @app.route('/api/search', methods=['GET'])
@@ -1322,14 +1544,15 @@ def api_search():
                 score = sim_scores[idx]
                 # Include document details + similarity score
                 results.append({
-                    'id': str(doc['_id']),
-                    'title': doc['title'],
-                    'branch': doc['branch'],
-                    'year': doc['year'],
-                    'subject': doc['subject'],
-                    'downloads': doc.get('downloads_count', 0),
-                    'score': float(score)
-                })
+    'id': str(doc['_id']),
+    'title': doc['title'],
+    'branch': doc['branch'],
+    'year': doc['year'],
+    'subject': doc['subject'],
+    'downloads': doc.get('downloads_count', 0),
+    'is_ai_recommended': doc.get('is_ai_recommended', False),
+    'score': float(score)
+})
                 
             # Sort by similarity score descending
             results.sort(key=lambda x: x['score'], reverse=True)
@@ -1342,26 +1565,28 @@ def api_search():
             for doc in all_filtered_docs:
                 if query.lower() in doc['title'].lower() or query.lower() in doc['description'].lower() or query.lower() in doc['subject'].lower():
                     results.append({
-                        'id': str(doc['_id']),
-                        'title': doc['title'],
-                        'branch': doc['branch'],
-                        'year': doc['year'],
-                        'subject': doc['subject'],
-                        'downloads': doc.get('downloads_count', 0)
-                    })
+    'id': str(doc['_id']),
+    'title': doc['title'],
+    'branch': doc['branch'],
+    'year': doc['year'],
+    'subject': doc['subject'],
+    'downloads': doc.get('downloads_count', 0),
+    'is_ai_recommended': doc.get('is_ai_recommended', False)
+})
             return jsonify(results)
     else:
         # No search query, just return list filtered by branch/year
         results = []
         for doc in all_filtered_docs:
             results.append({
-                'id': str(doc['_id']),
-                'title': doc['title'],
-                'branch': doc['branch'],
-                'year': doc['year'],
-                'subject': doc['subject'],
-                'downloads': doc.get('downloads_count', 0)
-            })
+    'id': str(doc['_id']),
+    'title': doc['title'],
+    'branch': doc['branch'],
+    'year': doc['year'],
+    'subject': doc['subject'],
+    'downloads': doc.get('downloads_count', 0),
+    'is_ai_recommended': doc.get('is_ai_recommended', False)
+})
         return jsonify(results)
 @app.route("/admin/export-users")
 def export_users():

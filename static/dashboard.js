@@ -177,13 +177,29 @@ function runSearch() {
         card.style.marginBottom = "15px";
 
         card.innerHTML = `
-  <h3>${doc.title}${similarityLabel}</h3>
-  <p>${doc.branch} | ${doc.year} | ${doc.subject}</p>
-  <p style="color: #94a3b8; font-size: 13px; margin-top: 5px;">Downloads: ${doc.downloads || 0}</p>
+<h3>
+    ${doc.title}
+    ${
+      doc.is_ai_recommended
+        ? '<span class="ai-badge">⭐ Best PDF</span>'
+        : ""
+    }
+    ${similarityLabel}
+</h3>
 
-  <button onclick="downloadFile('${doc.id || doc._id}')">Download</button>
+<p>${doc.branch} | ${doc.year} | ${doc.subject}</p>
 
-  <button onclick="previewFile('${doc.id || doc._id}')">Preview</button>
+<p style="color:#94a3b8;font-size:13px;margin-top:5px;">
+Downloads: ${doc.downloads || 0}
+</p>
+
+<button onclick="downloadFile('${doc.id || doc._id}')">
+Download
+</button>
+
+<button onclick="previewFile('${doc.id || doc._id}')">
+Preview
+</button>
 `;
         container.appendChild(card);
       });
