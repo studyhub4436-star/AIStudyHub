@@ -49,6 +49,7 @@ print("=" * 50)
 MONGO_URI = os.getenv('MONGO_URI')
 MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'studyhub')
 
+DB_STATUS = "Unknown"
 try:
     if not MONGO_URI:
         raise ValueError("MONGO_URI environment variable is missing or empty")
@@ -64,6 +65,7 @@ try:
 
     client.admin.command('ping')  # force real connection test
     db = client[MONGO_DB_NAME]
+    DB_STATUS = "MongoDB Atlas (Online)"
 
     print("[DATABASE] Connected successfully to MongoDB")
 
@@ -73,6 +75,7 @@ except Exception as e:
     import mongomock
     client = mongomock.MongoClient()
     db = client[MONGO_DB_NAME]
+    DB_STATUS = f"Local Mock / Offline (mongomock). Error: {str(e)}"
 
 # Collections
 users_col = db['users']
@@ -1781,6 +1784,123 @@ def api_download(doc_id):
 
     except Exception as e:
         return f"Download failed: {str(e)}", 500
+
+@app.route('/api/diagnostic')
+def diagnostic():
+    try:
+        total_docs = docs_col.count_documents({})
+        key = os.getenv("GEMINI_API_KEY", "")
+        key_status = "Placeholder/Invalid (contains dots)" if "..." in key or key == "your_api_key" else "Configured"
+        if not key:
+            key_status = "Not Found"
+
+        # Auto-run recalculation
+        recalculate_all_recommendations()
+
+        docs = list(docs_col.find({}))
+        docs_list = ""
+        for d in docs:
+            docs_list += f"""
+            <div style='border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 15px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
+                <h3 style='margin-top: 0; color: #1e293b;'>Title: {d.get('title')} (Subject: {d.get('subject')})</h3>
+                <p><b>Is Recommended (Star Badge):</b> <span style='color: {"#16a34a" if d.get("is_ai_recommended") else "#dc2626"}; font-weight: bold;'>{d.get("is_ai_recommended")}</span></p>
+                <p><b>AI Score:</b> {d.get("ai_analysis", {}).get("score")}</p>
+                <p><b>Title Alignment Score:</b> {d.get("ai_analysis", {}).get("title_alignment")}</p>
+                <p><b>Readability (Student Ease) Score:</b> {d.get("ai_analysis", {}).get("readability")}</p>
+                <p><b>AI Reason:</b> <span style='color: #475569;'>{d.get("ai_analysis", {}).get("reason")}</span></p>
+            </div>
+            """
+
+        html = f"""
+        <html>
+        <head>
+            <title>Study Hub Diagnostic Page</title>
+            <meta name='viewport' content='width=device-width, initial-scale=1'>
+        </head>
+        <body style='font-family: system-ui, -apple-system, sans-serif; padding: 30px; background: #f8fafc; color: #0f172a; max-width: 800px; margin: 0 auto;'>
+            <h1 style='color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;'>Study Hub System Diagnostics</h1>
+            <div style='background: #fff; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 20px;'>
+                <p style='margin: 8px 0;'><b>Database Connection:</b> <span style='color: {"#16a34a" if "Atlas" in DB_STATUS else "#dc2626"}; font-weight: bold;'>{DB_STATUS}</span></p>
+                <p style='margin: 8px 0;'><b>Total Documents in DB:</b> {total_docs}</p>
+                <p style='margin: 8px 0;'><b>Gemini API Key Status:</b> <span style='font-weight: bold;'>{key_status}</span> <code style='background: #e2e8f0; padding: 2px 6px; border-radius: 4px;'>({key[:6]}...{key[-4:] if len(key) > 4 else ""})</code></p>
+            </div>
+
+            <div style='margin: 25px 0;'>
+                <a href='/api/diagnostic/run-reanalysis' style='background: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Run PDF Re-Analysis (Updates All Star Recommendations)</a>
+                <a href='/dashboard' style='background: #475569; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-left: 10px;'>Back to Dashboard</a>
+            </div>
+
+            <hr style='border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;'/>
+            <h2 style='color: #1e293b;'>Documents and Recommendation States</h2>
+            {docs_list if docs_list else "<p style='color: #64748b;'>No documents found in database.</p>"}
+        </body>
+        </html>
+        """
+        return html
+    except Exception as e:
+        return f"Diagnostic Page Error: {str(e)}", 500
+
+@app.route('/api/diagnostic/run-reanalysis')
+def run_diagnostic_reanalysis():
+    try:
+        docs = list(docs_col.find({}).sort("_id", 1))
+        UPLOAD_FOLDER = app.config['UPLOAD_FOLDER']
+
+        log_output = []
+        for doc in docs:
+            filepath = os.path.join(UPLOAD_FOLDER, doc['filename'])
+            if os.path.exists(filepath):
+                subject = doc.get('subject', '')
+                current_best_doc = docs_col.find_one({
+                    "subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"},
+                    "is_ai_recommended": True
+                })
+                if current_best_doc and current_best_doc["_id"] == doc["_id"]:
+                    current_best_doc = None
+
+                current_best_text = None
+                current_best_score = 0
+                if current_best_doc:
+                    current_best_score = current_best_doc.get("ai_analysis", {}).get("score", 0)
+                    best_filepath = os.path.join(UPLOAD_FOLDER, current_best_doc['filename'])
+                    if os.path.exists(best_filepath):
+                        try:
+                            fitz_doc = fitz.open(best_filepath)
+                            best_text = ""
+                            for page in fitz_doc:
+                                best_text += page.get_text()
+                            fitz_doc.close()
+                            current_best_text = best_text[:15000]
+                        except Exception as best_err:
+                            print("Error reading current best PDF text:", best_err)
+
+                ai_analysis = analyze_pdf_with_ai(filepath, doc.get('title'), doc.get('subject'), current_best_text, current_best_score)
+                docs_col.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"ai_analysis": ai_analysis}}
+                )
+                log_output.append(f"Successfully Analyzed '{doc.get('title')}' (Subject: {doc.get('subject')}) -> Score: {ai_analysis.get('score')} | Star: {doc.get('is_ai_recommended')}")
+                recalculate_all_recommendations()
+            else:
+                log_output.append(f"File '{doc.get('filename')}' not found on server disk for document '{doc.get('title')}'")
+
+        recalculate_all_recommendations()
+
+        return f"""
+        <html>
+        <head><title>Re-Analysis Log</title></head>
+        <body style='font-family: monospace; padding: 30px; background: #0f172a; color: #38bdf8;'>
+            <h1 style='color: #f1f5f9;'>PDF Re-Analysis Execution Log</h1>
+            <hr style='border-color: #334155;'/>
+            <pre style='font-size: 14px;'>{"<br/>".join(log_output)}</pre>
+            <hr style='border-color: #334155;'/>
+            <p><a href='/api/diagnostic' style='color: #fb7185; font-weight: bold; text-decoration: none;'>&lt;&lt; Return to Diagnostic Page</a></p>
+        </body>
+        </html>
+        """
+    except Exception as e:
+        return f"Re-analysis Execution Failed: {str(e)}", 500
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
