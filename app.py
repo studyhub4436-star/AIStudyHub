@@ -140,10 +140,14 @@ def recalculate_all_recommendations():
                 d["_id"]
             ))
 
-            best_doc_id = group[0]["_id"]
+            best_doc = group[0]
+            best_score = best_doc.get("ai_analysis", {}).get("score", 0)
+
+            # Recommend only if the PDF is relevant and of good quality (score >= 60)
+            recommendation_threshold = 60
 
             for doc in group:
-                is_best = (doc["_id"] == best_doc_id)
+                is_best = (doc["_id"] == best_doc["_id"] and best_score >= recommendation_threshold)
                 docs_col.update_one(
                     {"_id": doc["_id"]},
                     {"$set": {"is_ai_recommended": is_best}}
@@ -191,7 +195,7 @@ def allowed_file(filename):
 
 import json
 
-def analyze_pdf_with_ai(filepath, title, subject):
+def analyze_pdf_with_ai(filepath, title, subject, current_best_text=None, current_best_score=0):
     if model is None:
         return {
             "score": 0,
@@ -216,16 +220,55 @@ def analyze_pdf_with_ai(filepath, title, subject):
         doc.close()
 
         # Very large PDFs ni limit cheyyadam
-        text = text[:25000]
+        text = text[:15000]
 
-        prompt = f"""
+        if current_best_text:
+            prompt = f"""
+You are an experienced university professor.
+
+We are evaluating study materials for the subject: "{subject}".
+
+We already have an existing recommended study material (Material A).
+We have a newly uploaded study material (Material B) with title: "{title}".
+
+Compare Material B against Material A carefully based on the following:
+1. Subject Relevance: Is the content of the new Material B actually relevant and related to the subject "{subject}"? If Material B is unrelated (e.g., a 'Social Media Analytics' PDF is uploaded for the subject 'DL' or 'Deep Learning'), it is a complete mismatch. In case of mismatch, you MUST give Material B a score of less than 30.
+2. Title-to-Content Alignment: Check how well the content of Material B matches its title "{title}".
+3. Student Readability: Which material explains concepts in a simpler, clearer, and more student-friendly way?
+4. Coverage & Examples: Which one has better syllabus coverage and more helpful examples/diagrams for students?
+
+Existing Material A Content:
+{current_best_text}
+
+New Material B Content:
+{text}
+
+Evaluate and assign a quality score to the new Material B.
+- If Material B is BETTER than Material A and is relevant to the subject "{subject}", assign Material B a score HIGHER than Material A's score of {current_best_score} (e.g., between {current_best_score + 1} and 100).
+- If Material A is better, or if Material B is irrelevant to "{subject}", assign Material B a score LOWER than {current_best_score} (under 30 if irrelevant).
+
+Return ONLY a JSON object in this format:
+{{
+"score": 90,
+"title_alignment": 95,
+"coverage": 95,
+"readability": 90,
+"structure": 92,
+"examples": 88,
+"diagrams": 80,
+"practical_usefulness": 91,
+"reason": "Provide a brief comparison stating why Material B is better or worse than Material A, and whether it matches the subject and title."
+}}
+"""
+        else:
+            prompt = f"""
 You are an experienced university professor.
 
 Analyze this study material for the subject: "{subject}" and title: "{title}".
 
 Evaluate the following criteria carefully:
-1. Title-to-Content Alignment: Compare the title "{title}" with the actual content/matter in the PDF. Check how relevant and accurate the content is to the title. If the content does not match the title or is irrelevant, give a very low score.
-2. Syllabus Coverage: How well does it cover the core syllabus of "{subject}"?
+1. Subject Relevance: Is the content actually relevant and related to the subject "{subject}"? If it is unrelated (e.g., a 'Social Media Analytics' PDF is uploaded for subject 'DL' or 'Deep Learning'), it is a complete mismatch. You MUST give an overall score of less than 30.
+2. Title-to-Content Alignment: Compare the title "{title}" with the actual content/matter in the PDF. Check how relevant and accurate the content is to the title.
 3. Explanation Quality & Student Readability: Is the material easy for students to understand? Are complex concepts explained in a clear, simplified, and student-friendly manner?
 4. Structure: Is the content well-organized with proper headings, sections, or flow?
 5. Examples: Does it include clear examples that help students grasp the topics easily?
@@ -243,7 +286,7 @@ Return ONLY a JSON object in this format:
 "examples": 88,
 "diagrams": 80,
 "practical_usefulness": 91,
-"reason": "Explain briefly, highlighting why this PDF is or isn't best/easy for students to understand and how well the title matches the content."
+"reason": "Explain briefly, highlighting why this PDF is or isn't best/easy for students to understand, how well the title matches the content, and if it is relevant to the subject."
 }}
 
 Study Material Content:
@@ -1455,8 +1498,30 @@ def api_upload():
         except Exception as hash_err:
             print("Error generating upload hash:", hash_err)
 
+        # Find current best document for this subject
+        current_best_doc = docs_col.find_one({
+            "subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"},
+            "is_ai_recommended": True
+        })
+
+        current_best_text = None
+        current_best_score = 0
+        if current_best_doc:
+            current_best_score = current_best_doc.get("ai_analysis", {}).get("score", 0)
+            best_filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_best_doc['filename'])
+            if os.path.exists(best_filepath):
+                try:
+                    fitz_doc = fitz.open(best_filepath)
+                    best_text = ""
+                    for page in fitz_doc:
+                        best_text += page.get_text()
+                    fitz_doc.close()
+                    current_best_text = best_text[:15000]
+                except Exception as best_err:
+                    print("Error reading current best PDF text:", best_err)
+
         # AI Analysis
-        ai_analysis = analyze_pdf_with_ai(filepath, title, subject)
+        ai_analysis = analyze_pdf_with_ai(filepath, title, subject, current_best_text, current_best_score)
 
         pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
         print("AI Analysis:", ai_analysis)
