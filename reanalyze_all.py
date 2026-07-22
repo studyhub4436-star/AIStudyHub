@@ -12,9 +12,8 @@ MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'studyhub')
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY or "..." in GEMINI_API_KEY or GEMINI_API_KEY == "your_api_key":
-    print("Error: Please set a valid GEMINI_API_KEY in your .env file first!")
-    print("Currently it is set to a placeholder: ", GEMINI_API_KEY)
-    sys.exit(1)
+    print("Warning: GEMINI_API_KEY is a placeholder or not configured. Proceeding with heuristic fallback scoring.")
+    GEMINI_API_KEY = "dummy_api_key"
 
 import google.generativeai as genai
 genai.configure(api_key=GEMINI_API_KEY)
