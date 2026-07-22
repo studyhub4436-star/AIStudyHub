@@ -49,7 +49,6 @@ print("=" * 50)
 MONGO_URI = os.getenv('MONGO_URI')
 MONGO_DB_NAME = os.getenv('MONGO_DB_NAME', 'studyhub')
 
-DB_STATUS = "Unknown"
 try:
     if not MONGO_URI:
         raise ValueError("MONGO_URI environment variable is missing or empty")
@@ -65,7 +64,6 @@ try:
 
     client.admin.command('ping')  # force real connection test
     db = client[MONGO_DB_NAME]
-    DB_STATUS = "MongoDB Atlas (Online)"
 
     print("[DATABASE] Connected successfully to MongoDB")
 
@@ -75,7 +73,6 @@ except Exception as e:
     import mongomock
     client = mongomock.MongoClient()
     db = client[MONGO_DB_NAME]
-    DB_STATUS = f"Local Mock / Offline (mongomock). Error: {str(e)}"
 
 # Collections
 users_col = db['users']
@@ -143,14 +140,10 @@ def recalculate_all_recommendations():
                 d["_id"]
             ))
 
-            best_doc = group[0]
-            best_score = best_doc.get("ai_analysis", {}).get("score", 0)
-
-            # Recommend only if the PDF is relevant and of good quality (score >= 60)
-            recommendation_threshold = 60
+            best_doc_id = group[0]["_id"]
 
             for doc in group:
-                is_best = (doc["_id"] == best_doc["_id"] and best_score >= recommendation_threshold)
+                is_best = (doc["_id"] == best_doc_id)
                 docs_col.update_one(
                     {"_id": doc["_id"]},
                     {"$set": {"is_ai_recommended": is_best}}
@@ -198,7 +191,7 @@ def allowed_file(filename):
 
 import json
 
-def analyze_pdf_with_ai(filepath, title, subject, current_best_text=None, current_best_score=0):
+def analyze_pdf_with_ai(filepath, title, subject):
     if model is None:
         return {
             "score": 0,
@@ -223,55 +216,16 @@ def analyze_pdf_with_ai(filepath, title, subject, current_best_text=None, curren
         doc.close()
 
         # Very large PDFs ni limit cheyyadam
-        text = text[:15000]
+        text = text[:25000]
 
-        if current_best_text:
-            prompt = f"""
-You are an experienced university professor.
-
-We are evaluating study materials for the subject: "{subject}".
-
-We already have an existing recommended study material (Material A).
-We have a newly uploaded study material (Material B) with title: "{title}".
-
-Compare Material B against Material A carefully based on the following:
-1. Subject Relevance: Is the content of the new Material B actually relevant and related to the subject "{subject}"? If Material B is unrelated (e.g., a 'Social Media Analytics' PDF is uploaded for the subject 'DL' or 'Deep Learning'), it is a complete mismatch. In case of mismatch, you MUST give Material B a score of less than 30.
-2. Title-to-Content Alignment: Check how well the content of Material B matches its title "{title}".
-3. Student Readability: Which material explains concepts in a simpler, clearer, and more student-friendly way?
-4. Coverage & Examples: Which one has better syllabus coverage and more helpful examples/diagrams for students?
-
-Existing Material A Content:
-{current_best_text}
-
-New Material B Content:
-{text}
-
-Evaluate and assign a quality score to the new Material B.
-- If Material B is BETTER than Material A and is relevant to the subject "{subject}", assign Material B a score HIGHER than Material A's score of {current_best_score} (e.g., between {current_best_score + 1} and 100).
-- If Material A is better, or if Material B is irrelevant to "{subject}", assign Material B a score LOWER than {current_best_score} (under 30 if irrelevant).
-
-Return ONLY a JSON object in this format:
-{{
-"score": 90,
-"title_alignment": 95,
-"coverage": 95,
-"readability": 90,
-"structure": 92,
-"examples": 88,
-"diagrams": 80,
-"practical_usefulness": 91,
-"reason": "Provide a brief comparison stating why Material B is better or worse than Material A, and whether it matches the subject and title."
-}}
-"""
-        else:
-            prompt = f"""
+        prompt = f"""
 You are an experienced university professor.
 
 Analyze this study material for the subject: "{subject}" and title: "{title}".
 
 Evaluate the following criteria carefully:
-1. Subject Relevance: Is the content actually relevant and related to the subject "{subject}"? If it is unrelated (e.g., a 'Social Media Analytics' PDF is uploaded for subject 'DL' or 'Deep Learning'), it is a complete mismatch. You MUST give an overall score of less than 30.
-2. Title-to-Content Alignment: Compare the title "{title}" with the actual content/matter in the PDF. Check how relevant and accurate the content is to the title.
+1. Title-to-Content Alignment: Compare the title "{title}" with the actual content/matter in the PDF. Check how relevant and accurate the content is to the title. If the content does not match the title or is irrelevant, give a very low score.
+2. Syllabus Coverage: How well does it cover the core syllabus of "{subject}"?
 3. Explanation Quality & Student Readability: Is the material easy for students to understand? Are complex concepts explained in a clear, simplified, and student-friendly manner?
 4. Structure: Is the content well-organized with proper headings, sections, or flow?
 5. Examples: Does it include clear examples that help students grasp the topics easily?
@@ -289,7 +243,7 @@ Return ONLY a JSON object in this format:
 "examples": 88,
 "diagrams": 80,
 "practical_usefulness": 91,
-"reason": "Explain briefly, highlighting why this PDF is or isn't best/easy for students to understand, how well the title matches the content, and if it is relevant to the subject."
+"reason": "Explain briefly, highlighting why this PDF is or isn't best/easy for students to understand and how well the title matches the content."
 }}
 
 Study Material Content:
@@ -297,67 +251,16 @@ Study Material Content:
 {text}
 """
 
-        try:
-            response = model.generate_content(prompt)
-            result = response.text.strip()
-            result = result.replace("```json", "")
-            result = result.replace("```", "")
-            result = result.strip()
-            return json.loads(result)
-        except Exception as api_err:
-            print("Gemini API call failed, falling back to heuristic mock scoring. Error:", api_err)
-            
-            text_lower = text.lower()
-            subject_lower = subject.lower()
-            title_lower = title.lower()
+        response = model.generate_content(prompt)
 
-            # Define subject keywords
-            subject_keywords = {
-                "dl": ["neural", "deep learning", "network", "layer", "weights", "gradient", "cnn", "rnn", "tensor"],
-                "deep learning": ["neural", "deep learning", "network", "layer", "weights", "gradient", "cnn", "rnn", "tensor"],
-                "sma": ["social", "media", "analytics", "twitter", "facebook", "instagram", "sentiment", "network", "graph"],
-                "social media analytics": ["social", "media", "analytics", "twitter", "facebook", "instagram", "sentiment", "network", "graph"],
-                "cns": ["crypto", "cipher", "key", "encrypt", "decrypt", "security", "hash", "signature", "rsa", "aes"],
-                "cryptography": ["crypto", "cipher", "key", "encrypt", "decrypt", "security", "hash", "signature", "rsa", "aes"],
-                "se": ["software", "engineering", "agile", "scrum", "requirements", "uml", "design", "testing", "lifecycle"],
-                "software engineering": ["software", "engineering", "agile", "scrum", "requirements", "uml", "design", "testing", "lifecycle"]
-            }
+        result = response.text.strip()
 
-            # Check for mismatch
-            is_mismatch = False
-            matched_keywords = []
-            for k, keywords in subject_keywords.items():
-                if k in subject_lower:
-                    matched_keywords = [kw for kw in keywords if kw in text_lower or kw in title_lower]
-                    if not matched_keywords:
-                        is_mismatch = True
-                    break
+        # Gemini sometimes returns ```json ... ```
+        result = result.replace("```json", "")
+        result = result.replace("```", "")
+        result = result.strip()
 
-            if is_mismatch:
-                score = 25
-                title_alignment = 20
-                readability = 15
-                reason = f"Heuristic Fallback: Content mismatch detected. The content does not contain keywords related to '{subject}'."
-            else:
-                if current_best_score > 0:
-                    score = min(98, max(current_best_score + 5, 80))
-                else:
-                    score = 85
-                title_alignment = 90
-                readability = 88
-                reason = f"Heuristic Fallback: Valid content for '{subject}' detected (keywords matched: {matched_keywords if matched_keywords else 'N/A'}). Excellent readability and structure."
-
-            return {
-                "score": score,
-                "title_alignment": title_alignment,
-                "coverage": 85,
-                "readability": readability,
-                "structure": 90,
-                "examples": 80,
-                "diagrams": 75,
-                "practical_usefulness": 85,
-                "reason": reason
-            }
+        return json.loads(result)
 
     except Exception as e:
         print("AI ERROR:", e)
@@ -1552,30 +1455,8 @@ def api_upload():
         except Exception as hash_err:
             print("Error generating upload hash:", hash_err)
 
-        # Find current best document for this subject
-        current_best_doc = docs_col.find_one({
-            "subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"},
-            "is_ai_recommended": True
-        })
-
-        current_best_text = None
-        current_best_score = 0
-        if current_best_doc:
-            current_best_score = current_best_doc.get("ai_analysis", {}).get("score", 0)
-            best_filepath = os.path.join(app.config['UPLOAD_FOLDER'], current_best_doc['filename'])
-            if os.path.exists(best_filepath):
-                try:
-                    fitz_doc = fitz.open(best_filepath)
-                    best_text = ""
-                    for page in fitz_doc:
-                        best_text += page.get_text()
-                    fitz_doc.close()
-                    current_best_text = best_text[:15000]
-                except Exception as best_err:
-                    print("Error reading current best PDF text:", best_err)
-
         # AI Analysis
-        ai_analysis = analyze_pdf_with_ai(filepath, title, subject, current_best_text, current_best_score)
+        ai_analysis = analyze_pdf_with_ai(filepath, title, subject)
 
         pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
         print("AI Analysis:", ai_analysis)
@@ -1784,123 +1665,6 @@ def api_download(doc_id):
 
     except Exception as e:
         return f"Download failed: {str(e)}", 500
-
-@app.route('/api/diagnostic')
-def diagnostic():
-    try:
-        total_docs = docs_col.count_documents({})
-        key = os.getenv("GEMINI_API_KEY", "")
-        key_status = "Placeholder/Invalid (contains dots)" if "..." in key or key == "your_api_key" else "Configured"
-        if not key:
-            key_status = "Not Found"
-
-        # Auto-run recalculation
-        recalculate_all_recommendations()
-
-        docs = list(docs_col.find({}))
-        docs_list = ""
-        for d in docs:
-            docs_list += f"""
-            <div style='border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 15px 0; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05);'>
-                <h3 style='margin-top: 0; color: #1e293b;'>Title: {d.get('title')} (Subject: {d.get('subject')})</h3>
-                <p><b>Is Recommended (Star Badge):</b> <span style='color: {"#16a34a" if d.get("is_ai_recommended") else "#dc2626"}; font-weight: bold;'>{d.get("is_ai_recommended")}</span></p>
-                <p><b>AI Score:</b> {d.get("ai_analysis", {}).get("score")}</p>
-                <p><b>Title Alignment Score:</b> {d.get("ai_analysis", {}).get("title_alignment")}</p>
-                <p><b>Readability (Student Ease) Score:</b> {d.get("ai_analysis", {}).get("readability")}</p>
-                <p><b>AI Reason:</b> <span style='color: #475569;'>{d.get("ai_analysis", {}).get("reason")}</span></p>
-            </div>
-            """
-
-        html = f"""
-        <html>
-        <head>
-            <title>Study Hub Diagnostic Page</title>
-            <meta name='viewport' content='width=device-width, initial-scale=1'>
-        </head>
-        <body style='font-family: system-ui, -apple-system, sans-serif; padding: 30px; background: #f8fafc; color: #0f172a; max-width: 800px; margin: 0 auto;'>
-            <h1 style='color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;'>Study Hub System Diagnostics</h1>
-            <div style='background: #fff; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0; margin-bottom: 20px;'>
-                <p style='margin: 8px 0;'><b>Database Connection:</b> <span style='color: {"#16a34a" if "Atlas" in DB_STATUS else "#dc2626"}; font-weight: bold;'>{DB_STATUS}</span></p>
-                <p style='margin: 8px 0;'><b>Total Documents in DB:</b> {total_docs}</p>
-                <p style='margin: 8px 0;'><b>Gemini API Key Status:</b> <span style='font-weight: bold;'>{key_status}</span> <code style='background: #e2e8f0; padding: 2px 6px; border-radius: 4px;'>({key[:6]}...{key[-4:] if len(key) > 4 else ""})</code></p>
-            </div>
-
-            <div style='margin: 25px 0;'>
-                <a href='/api/diagnostic/run-reanalysis' style='background: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;'>Run PDF Re-Analysis (Updates All Star Recommendations)</a>
-                <a href='/dashboard' style='background: #475569; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin-left: 10px;'>Back to Dashboard</a>
-            </div>
-
-            <hr style='border: 0; border-top: 1px solid #e2e8f0; margin: 30px 0;'/>
-            <h2 style='color: #1e293b;'>Documents and Recommendation States</h2>
-            {docs_list if docs_list else "<p style='color: #64748b;'>No documents found in database.</p>"}
-        </body>
-        </html>
-        """
-        return html
-    except Exception as e:
-        return f"Diagnostic Page Error: {str(e)}", 500
-
-@app.route('/api/diagnostic/run-reanalysis')
-def run_diagnostic_reanalysis():
-    try:
-        docs = list(docs_col.find({}).sort("_id", 1))
-        UPLOAD_FOLDER = app.config['UPLOAD_FOLDER']
-
-        log_output = []
-        for doc in docs:
-            filepath = os.path.join(UPLOAD_FOLDER, doc['filename'])
-            if os.path.exists(filepath):
-                subject = doc.get('subject', '')
-                current_best_doc = docs_col.find_one({
-                    "subject": {"$regex": f"^{re.escape(subject.strip())}$", "$options": "i"},
-                    "is_ai_recommended": True
-                })
-                if current_best_doc and current_best_doc["_id"] == doc["_id"]:
-                    current_best_doc = None
-
-                current_best_text = None
-                current_best_score = 0
-                if current_best_doc:
-                    current_best_score = current_best_doc.get("ai_analysis", {}).get("score", 0)
-                    best_filepath = os.path.join(UPLOAD_FOLDER, current_best_doc['filename'])
-                    if os.path.exists(best_filepath):
-                        try:
-                            fitz_doc = fitz.open(best_filepath)
-                            best_text = ""
-                            for page in fitz_doc:
-                                best_text += page.get_text()
-                            fitz_doc.close()
-                            current_best_text = best_text[:15000]
-                        except Exception as best_err:
-                            print("Error reading current best PDF text:", best_err)
-
-                ai_analysis = analyze_pdf_with_ai(filepath, doc.get('title'), doc.get('subject'), current_best_text, current_best_score)
-                docs_col.update_one(
-                    {"_id": doc["_id"]},
-                    {"$set": {"ai_analysis": ai_analysis}}
-                )
-                log_output.append(f"Successfully Analyzed '{doc.get('title')}' (Subject: {doc.get('subject')}) -> Score: {ai_analysis.get('score')} | Star: {doc.get('is_ai_recommended')}")
-                recalculate_all_recommendations()
-            else:
-                log_output.append(f"File '{doc.get('filename')}' not found on server disk for document '{doc.get('title')}'")
-
-        recalculate_all_recommendations()
-
-        return f"""
-        <html>
-        <head><title>Re-Analysis Log</title></head>
-        <body style='font-family: monospace; padding: 30px; background: #0f172a; color: #38bdf8;'>
-            <h1 style='color: #f1f5f9;'>PDF Re-Analysis Execution Log</h1>
-            <hr style='border-color: #334155;'/>
-            <pre style='font-size: 14px;'>{"<br/>".join(log_output)}</pre>
-            <hr style='border-color: #334155;'/>
-            <p><a href='/api/diagnostic' style='color: #fb7185; font-weight: bold; text-decoration: none;'>&lt;&lt; Return to Diagnostic Page</a></p>
-        </body>
-        </html>
-        """
-    except Exception as e:
-        return f"Re-analysis Execution Failed: {str(e)}", 500
-
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     app.run(host="0.0.0.0", port=port)
