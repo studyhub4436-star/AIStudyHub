@@ -140,15 +140,10 @@ def recalculate_all_recommendations():
                 d["_id"]
             ))
 
-            best_doc = group[0]
-            best_score = best_doc.get("ai_analysis", {}).get("score", 0)
-
-            # Recommend only if the PDF is relevant and of good quality (score >= 60)
-            # If the best document fails this threshold, do not recommend any PDF in this subject
-            recommendation_threshold = 60
+            best_doc_id = group[0]["_id"]
 
             for doc in group:
-                is_best = (doc["_id"] == best_doc["_id"] and best_score >= recommendation_threshold)
+                is_best = (doc["_id"] == best_doc_id)
                 docs_col.update_one(
                     {"_id": doc["_id"]},
                     {"$set": {"is_ai_recommended": is_best}}
@@ -236,8 +231,6 @@ Evaluate the following criteria carefully:
 5. Examples: Does it include clear examples that help students grasp the topics easily?
 6. Diagrams: Are there diagrams or visualizations that aid in understanding?
 7. Practical Usefulness: How useful is this material for students preparing for exams or practical applications?
-
-CRITICAL RULE: If the content of the study material is completely unrelated or mismatched to the subject "{subject}" or the title "{title}" (for example, if a 'Social Media Analytics' PDF is uploaded for the subject 'DL' or 'Deep Learning'), it is a complete mismatch. You MUST give an overall score and all criteria scores of less than 30.
 
 Return ONLY a JSON object in this format:
 
