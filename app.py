@@ -81,6 +81,9 @@ downloads_col = db['downloads']
 otps_col = db['otps']
 approval_requests_col = db["approval_requests"]
 
+import gridfs
+fs = gridfs.GridFS(db)
+
 
 # ---------------- Gemini AI ----------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -158,19 +161,29 @@ def init_ai_recommendations():
         all_docs = list(docs_col.find({}))
         for doc in all_docs:
             if not doc.get('text_hash'):
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
-                if os.path.exists(filepath):
-                    try:
-                        fitz_doc = fitz.open(filepath)
-                        text = ""
-                        for page in fitz_doc:
-                            text += page.get_text()
-                        fitz_doc.close()
-                        normalized = "".join(text.split()).lower()
-                        text_hash = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
-                        docs_col.update_one({'_id': doc['_id']}, {'$set': {'text_hash': text_hash}})
-                    except Exception as e:
-                        print(f"Error hashing existing doc {doc.get('title')}: {e}")
+                filename = doc['filename']
+                try:
+                    grid_out = fs.find_one({"filename": filename})
+                    if grid_out:
+                        file_data = grid_out.read()
+                    else:
+                        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                        if os.path.exists(filepath):
+                            with open(filepath, 'rb') as f:
+                                file_data = f.read()
+                        else:
+                            continue
+
+                    fitz_doc = fitz.open(stream=file_data, filetype="pdf")
+                    text = ""
+                    for page in fitz_doc:
+                        text += page.get_text()
+                    fitz_doc.close()
+                    normalized = "".join(text.split()).lower()
+                    text_hash = hashlib.sha256(normalized.encode('utf-8')).hexdigest()
+                    docs_col.update_one({'_id': doc['_id']}, {'$set': {'text_hash': text_hash}})
+                except Exception as e:
+                    print(f"Error hashing existing doc {doc.get('title')}: {e}")
 
         # Run consolidated recalculation
         recalculate_all_recommendations()
@@ -191,7 +204,7 @@ def allowed_file(filename):
 
 import json
 
-def analyze_pdf_with_ai(filepath, title, subject):
+def analyze_pdf_with_ai(filename, title, subject):
     if model is None:
         return {
             "score": 0,
@@ -206,8 +219,20 @@ def analyze_pdf_with_ai(filepath, title, subject):
         }
 
     try:
-        # Read PDF
-        doc = fitz.open(filepath)
+        # Read PDF from GridFS or fallback to local disk
+        grid_out = fs.find_one({"filename": filename})
+        if grid_out:
+            file_data = grid_out.read()
+        else:
+            # Fallback for compatibility
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                with open(filepath, 'rb') as f:
+                    file_data = f.read()
+            else:
+                raise FileNotFoundError(f"File {filename} not found in GridFS or uploads directory")
+
+        doc = fitz.open(stream=file_data, filetype="pdf")
         text = ""
 
         for page in doc:
@@ -719,6 +744,15 @@ def admin_preview(doc_id):
 
     ext = doc['filename'].rsplit('.', 1)[1].lower() if '.' in doc['filename'] else ''
 
+    grid_out = fs.find_one({"filename": doc['filename']})
+    if grid_out:
+        from flask import Response
+        return Response(
+            grid_out.read(),
+            mimetype=grid_out.content_type or 'application/pdf',
+            headers={"Content-Disposition": f"inline; filename={doc['filename']}"}
+        )
+
     if ext == "pdf":
         return send_from_directory(
             app.config['UPLOAD_FOLDER'],
@@ -751,6 +785,14 @@ def admin_delete_pdf(doc_id):
 
     if doc:
         subject = doc.get("subject")
+
+        # Delete from GridFS
+        grid_out = fs.find_one({"filename": doc['filename']})
+        if grid_out:
+            try:
+                fs.delete(grid_out._id)
+            except Exception as fs_err:
+                print("Error deleting from GridFS:", fs_err)
 
         filepath = os.path.join(
             app.config['UPLOAD_FOLDER'],
@@ -944,6 +986,14 @@ def delete_upload(doc_id):
 
         subject = doc.get("subject")
 
+        # Delete from GridFS
+        grid_out = fs.find_one({"filename": doc['filename']})
+        if grid_out:
+            try:
+                fs.delete(grid_out._id)
+            except Exception as fs_err:
+                print("Error deleting from GridFS:", fs_err)
+
         # Delete PDF file
         filepath = os.path.join(
             app.config['UPLOAD_FOLDER'],
@@ -978,7 +1028,15 @@ def delete_upload(doc_id):
         })
 @app.route('/files/<filename>')
 def serve_file(filename):
+    grid_out = fs.find_one({"filename": filename})
+    if grid_out:
+        from flask import Response
+        return Response(
+            grid_out.read(),
+            mimetype=grid_out.content_type or 'application/pdf'
+        )
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+
 @app.route('/preview/<doc_id>')
 def preview_pdf(doc_id):
 
@@ -988,6 +1046,15 @@ def preview_pdf(doc_id):
     doc = docs_col.find_one({"_id": ObjectId(doc_id)})
     if not doc:
         return "File Not Found", 404
+
+    grid_out = fs.find_one({"filename": doc['filename']})
+    if grid_out:
+        from flask import Response
+        return Response(
+            grid_out.read(),
+            mimetype=grid_out.content_type or 'application/pdf',
+            headers={"Content-Disposition": f"inline; filename={doc['filename']}"}
+        )
 
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
     print("Filename from DB:", doc['filename'])
@@ -1437,15 +1504,15 @@ def api_upload():
     orig_name = secure_filename(file.filename)
     unique_prefix = datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')
     filename = f"{unique_prefix}_{orig_name}"
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     
     try:
-        file.save(filepath)
+        file_data = file.read()
+        grid_file_id = fs.put(file_data, filename=filename, content_type=file.content_type or "application/pdf")
 
-        # Hashing PDF content
+        # Hashing PDF content in-memory
         text_hash = ""
         try:
-            fitz_doc = fitz.open(filepath)
+            fitz_doc = fitz.open(stream=file_data, filetype="pdf")
             extracted_text = ""
             for page in fitz_doc:
                 extracted_text += page.get_text()
@@ -1456,7 +1523,7 @@ def api_upload():
             print("Error generating upload hash:", hash_err)
 
         # AI Analysis
-        ai_analysis = analyze_pdf_with_ai(filepath, title, subject)
+        ai_analysis = analyze_pdf_with_ai(filename, title, subject)
 
         pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
         print("AI Analysis:", ai_analysis)
@@ -1634,6 +1701,32 @@ def api_download(doc_id):
         if not doc:
             return "File not found", 404
 
+        # Ensure download name has the correct extension
+        ext = doc['filename'].rsplit('.', 1)[1].lower() if '.' in doc['filename'] else ''
+        download_name = doc['title']
+        if ext and not download_name.lower().endswith('.' + ext):
+            download_name = f"{download_name}.{ext}"
+
+        grid_out = fs.find_one({"filename": doc['filename']})
+        if grid_out:
+            downloads_col.insert_one({
+                'user_id': session['user_id'],
+                'document_id': doc_id,
+                'download_date': datetime.now(timezone.utc)
+            })
+
+            docs_col.update_one(
+                {'_id': ObjectId(doc_id)},
+                {'$inc': {'downloads_count': 1}}
+            )
+
+            from flask import Response
+            return Response(
+                grid_out.read(),
+                mimetype=grid_out.content_type or 'application/octet-stream',
+                headers={"Content-Disposition": f'attachment; filename="{download_name}"'}
+            )
+
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], doc['filename'])
 
         if not os.path.exists(file_path):
@@ -1649,12 +1742,6 @@ def api_download(doc_id):
             {'_id': ObjectId(doc_id)},
             {'$inc': {'downloads_count': 1}}
         )
-
-        # Ensure download name has the correct extension
-        ext = doc['filename'].rsplit('.', 1)[1].lower() if '.' in doc['filename'] else ''
-        download_name = doc['title']
-        if ext and not download_name.lower().endswith('.' + ext):
-            download_name = f"{download_name}.{ext}"
 
         return send_from_directory(
             app.config['UPLOAD_FOLDER'],

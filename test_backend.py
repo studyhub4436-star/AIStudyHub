@@ -1,7 +1,8 @@
 import unittest
 import os
 import json
-from datetime import datetime, timezone
+import gridfs
+from datetime import timezone
 from bson.objectid import ObjectId
 from app import app, db, users_col, docs_col, downloads_col, otps_col
 
@@ -22,6 +23,7 @@ class AIStudyHubTestCase(unittest.TestCase):
         self.test_docs = test_db['documents']
         self.test_downloads = test_db['downloads']
         self.test_otps = test_db['otps']
+        self.test_fs = gridfs.GridFS(test_db)
         
         # Override app collections
         global users_col, docs_col, downloads_col, otps_col
@@ -30,6 +32,7 @@ class AIStudyHubTestCase(unittest.TestCase):
         self.orig_docs = app_module.docs_col
         self.orig_dls = app_module.downloads_col
         self.orig_otps = app_module.otps_col
+        self.orig_fs = app_module.fs
         
         self.orig_send_otp = app_module.send_email_otp
         app_module.send_email_otp = lambda to, otp: True
@@ -38,6 +41,7 @@ class AIStudyHubTestCase(unittest.TestCase):
         app_module.docs_col = self.test_docs
         app_module.downloads_col = self.test_downloads
         app_module.otps_col = self.test_otps
+        app_module.fs = self.test_fs
         
         # Clear collections
         self.test_users.delete_many({})
@@ -55,6 +59,7 @@ class AIStudyHubTestCase(unittest.TestCase):
         app_module.docs_col = self.orig_docs
         app_module.downloads_col = self.orig_dls
         app_module.otps_col = self.orig_otps
+        app_module.fs = self.orig_fs
         app_module.send_email_otp = self.orig_send_otp
 
     def test_pages_load(self):
@@ -175,11 +180,8 @@ class AIStudyHubTestCase(unittest.TestCase):
             'downloads_count': 0
         }).inserted_id
 
-        # Create dummy file to avoid 404
-        os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-        dummy_file_path = os.path.join(app.config['UPLOAD_FOLDER'], '20260702_physics.pdf')
-        with open(dummy_file_path, 'w') as f:
-            f.write('%PDF-1.7 dummy pdf content')
+        # Create dummy file in test GridFS
+        self.test_fs.put(b'%PDF-1.7 dummy pdf content', filename='20260702_physics.pdf', content_type='application/pdf')
 
         response = None
         try:
@@ -207,9 +209,6 @@ class AIStudyHubTestCase(unittest.TestCase):
         finally:
             if response is not None:
                 response.close()
-            # Clean up dummy file
-            if os.path.exists(dummy_file_path):
-                os.remove(dummy_file_path)
 
 if __name__ == '__main__':
     unittest.main()
