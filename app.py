@@ -112,47 +112,42 @@ def recalculate_all_recommendations():
         if not all_docs:
             return
 
-        # 1. Group by subject (case-insensitive) to find the max score for each subject
-        subject_max_scores = {}
+        # 1. Group documents by subject (case-insensitive)
+        subject_groups = {}
         for doc in all_docs:
             subj = doc.get("subject", "").strip().lower()
             if not subj:
+                docs_col.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"is_ai_recommended": False}}
+                )
                 continue
-            score = doc.get("ai_analysis", {}).get("score", 0)
-            if subj not in subject_max_scores or score > subject_max_scores[subj]:
-                subject_max_scores[subj] = score
+            if subj not in subject_groups:
+                subject_groups[subj] = []
+            subject_groups[subj].append(doc)
 
-        # 2. Find the single best document (highest score, tie-broken by oldest _id) for each text_hash
-        hash_best_doc_ids = {}
-        hash_groups = {}
-        for doc in all_docs:
-            h = doc.get("text_hash")
-            if not h:
-                continue
-            if h not in hash_groups:
-                hash_groups[h] = []
-            hash_groups[h].append(doc)
+        # 2. For each subject, sort documents and identify the single best one
+        for subj, group in subject_groups.items():
+            # Sort order:
+            # - score descending
+            # - title_alignment descending
+            # - readability descending
+            # - _id ascending (older first)
+            group.sort(key=lambda d: (
+                -d.get("ai_analysis", {}).get("score", 0),
+                -d.get("ai_analysis", {}).get("title_alignment", 0),
+                -d.get("ai_analysis", {}).get("readability", 0),
+                d["_id"]
+            ))
 
-        for h, group in hash_groups.items():
-            # Sort group by score descending, then by _id ascending (older first)
-            group.sort(key=lambda d: (-d.get("ai_analysis", {}).get("score", 0), d["_id"]))
-            hash_best_doc_ids[h] = group[0]["_id"]
+            best_doc_id = group[0]["_id"]
 
-        # 3. Evaluate and update each document
-        for doc in all_docs:
-            subj = doc.get("subject", "").strip().lower()
-            h = doc.get("text_hash")
-            score = doc.get("ai_analysis", {}).get("score", 0)
-
-            is_best_in_subject = (subj and score == subject_max_scores.get(subj, 0))
-            is_best_in_hash = (not h or doc["_id"] == hash_best_doc_ids.get(h))
-
-            is_rec = bool(is_best_in_subject and is_best_in_hash)
-
-            docs_col.update_one(
-                {"_id": doc["_id"]},
-                {"$set": {"is_ai_recommended": is_rec}}
-            )
+            for doc in group:
+                is_best = (doc["_id"] == best_doc_id)
+                docs_col.update_one(
+                    {"_id": doc["_id"]},
+                    {"$set": {"is_ai_recommended": is_best}}
+                )
         print("[DATABASE] Recalculated all recommendation badges successfully.")
     except Exception as e:
         print(f"[DATABASE WARNING] Failed to recalculate recommendation badges: {e}")
@@ -196,10 +191,11 @@ def allowed_file(filename):
 
 import json
 
-def analyze_pdf_with_ai(filepath, subject):
+def analyze_pdf_with_ai(filepath, title, subject):
     if model is None:
         return {
             "score": 0,
+            "title_alignment": 0,
             "coverage": 0,
             "readability": 0,
             "structure": 0,
@@ -225,31 +221,32 @@ def analyze_pdf_with_ai(filepath, subject):
         prompt = f"""
 You are an experienced university professor.
 
-Analyze this {subject} study material.
+Analyze this study material for the subject: "{subject}" and title: "{title}".
 
-Evaluate:
-- Syllabus Coverage
-- Explanation Quality
-- Readability
-- Structure
-- Examples
-- Diagrams
-- Practical Usefulness
+Evaluate the following criteria carefully:
+1. Title-to-Content Alignment: Compare the title "{title}" with the actual content/matter in the PDF. Check how relevant and accurate the content is to the title. If the content does not match the title or is irrelevant, give a very low score.
+2. Syllabus Coverage: How well does it cover the core syllabus of "{subject}"?
+3. Explanation Quality & Student Readability: Is the material easy for students to understand? Are complex concepts explained in a clear, simplified, and student-friendly manner?
+4. Structure: Is the content well-organized with proper headings, sections, or flow?
+5. Examples: Does it include clear examples that help students grasp the topics easily?
+6. Diagrams: Are there diagrams or visualizations that aid in understanding?
+7. Practical Usefulness: How useful is this material for students preparing for exams or practical applications?
 
-Return ONLY JSON in this format:
+Return ONLY a JSON object in this format:
 
 {{
-"score":90,
-"coverage":95,
-"readability":90,
-"structure":92,
-"examples":88,
-"diagrams":80,
-"practical_usefulness":91,
-"reason":"Explain briefly"
+"score": 90,
+"title_alignment": 95,
+"coverage": 95,
+"readability": 90,
+"structure": 92,
+"examples": 88,
+"diagrams": 80,
+"practical_usefulness": 91,
+"reason": "Explain briefly, highlighting why this PDF is or isn't best/easy for students to understand and how well the title matches the content."
 }}
 
-Study Material:
+Study Material Content:
 
 {text}
 """
@@ -270,6 +267,7 @@ Study Material:
 
         return {
             "score": 0,
+            "title_alignment": 0,
             "coverage": 0,
             "readability": 0,
             "structure": 0,
@@ -1458,7 +1456,7 @@ def api_upload():
             print("Error generating upload hash:", hash_err)
 
         # AI Analysis
-        ai_analysis = analyze_pdf_with_ai(filepath, subject)
+        ai_analysis = analyze_pdf_with_ai(filepath, title, subject)
 
         pdf_id = "PDF" + str(docs_col.count_documents({}) + 1).zfill(3)
         print("AI Analysis:", ai_analysis)
